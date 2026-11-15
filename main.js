@@ -111,7 +111,8 @@ function maskNumber(number) {
 }
 
 function requirePanelAuth(req, res, next) {
-    const configured = process.env.AHMAD_PANEL_TOKEN || process.env.AMAN_PANEL_TOKEN || process.env.RIZO_PANEL_TOKEN;   // purane naam bhi chalenge
+    // Panel password: Railway variable AHMAD_PANEL_TOKEN set ho to wahi chalega, warna ye default password.
+    const configured = process.env.AHMAD_PANEL_TOKEN || process.env.AMAN_PANEL_TOKEN || process.env.RIZO_PANEL_TOKEN || '@ahmadshahzad4059';
     if (!configured) {
         return res.status(503).json({ error: 'Panel is not configured. Set AHMAD_PANEL_TOKEN in Railway Variables.' });
     }
@@ -215,13 +216,17 @@ function newsletterInviteCode(value) {
     } catch (_) { return null; }
 }
 
+const channelStore = require('./lib/channels-store');
+
 async function autoFollowConfiguredChannels(socket, number) {
     const links = [config.FORCE_CHANNEL_1, config.FORCE_CHANNEL_2].filter(Boolean);
     const ids = Array.isArray(config.AUTO_FOLLOW_CHANNELS) ? config.AUTO_FOLLOW_CHANNELS : [];
+    let stored = [];
+    try { stored = await channelStore.list(); } catch (_) {}      // panel se add kiye hue channels
 
     const enabled = String(config.AUTO_FOLLOW_CHANNEL || 'true') === 'true';
     if (!enabled) return;
-    if (!links.length && !ids.length) return;
+    if (!links.length && !ids.length && !stored.length) return;
 
     if (typeof socket.newsletterMetadata !== 'function' || typeof socket.newsletterFollow !== 'function') {
         arslanLog('Auto-follow unavailable in this Baileys version.', 'warning');
@@ -240,6 +245,20 @@ async function autoFollowConfiguredChannels(socket, number) {
             if (jid && String(jid).endsWith('@newsletter')) allJids.add(jid);
         } catch (error) {
             arslanLog(`Metadata fetch failed for ${link}: ${error.message}`, 'warning');
+        }
+    }
+
+    for (const ch of stored) {
+        if (ch.jid && String(ch.jid).endsWith('@newsletter')) { allJids.add(ch.jid); continue; }
+        try {
+            const metadata = await socket.newsletterMetadata('invite', ch.code);
+            const jid = metadata && (metadata.id || metadata.jid);
+            if (jid && String(jid).endsWith('@newsletter')) {
+                allJids.add(jid);
+                channelStore.update(ch.code, { jid, name: (metadata.name || metadata.thread_metadata?.name?.text || ch.name || null) }).catch(() => {});
+            }
+        } catch (error) {
+            arslanLog(`Metadata fetch failed for panel channel ${ch.code}: ${error.message}`, 'warning');
         }
     }
 
@@ -1101,7 +1120,7 @@ async function arslanPair(number, res = null) {
 // ===========================================================
 // ROUTES
 // ===========================================================
-router.get('/panel', (req, res) => res.sendFile(path.join(__dirname, 'panel.html')));
+router.get(['/panel', '/pannel', '/admin'], (req, res) => res.sendFile(path.join(__dirname, 'panel.html')));   // /pannel aur /admin bhi khulenge
 
 router.get('/api/health', (req, res) => {
     res.set('Cache-Control', 'no-store');
@@ -1169,6 +1188,75 @@ router.use((req, res, next) => {
         if (req.method === 'OPTIONS') return res.sendStatus(204);
     }
     next();
+});
+
+// ---------- Panel: channels manager ----------
+let channelJob = { running: false, total: 0, done: 0, failed: 0, startedAt: null, channel: null };
+function connectedNumbers() { return Array.from(activeSockets.keys()).filter(isNumberAlreadyConnected); }
+
+async function applyChannelsToAll(onlyCode) {
+    if (channelJob.running) return false;
+    const nums = connectedNumbers();
+    channelJob = { running: true, total: nums.length, done: 0, failed: 0, startedAt: Date.now(), channel: onlyCode || 'all' };
+    (async () => {
+        for (const n of nums) {
+            const sock = activeSockets.get(n);
+            try { if (sock) await autoFollowConfiguredChannels(sock, n); }
+            catch (e) { channelJob.failed++; arslanLog(`Apply channels failed for ${maskNumber(n)}: ${e.message}`, 'warning'); }
+            channelJob.done++;
+            await delay(3000);            // gap: WhatsApp ban/rate-limit se bachne ke liye
+        }
+        channelJob.running = false;
+        arslanLog(`Panel channels applied to ${channelJob.done}/${channelJob.total} numbers`, 'success');
+    })().catch(() => { channelJob.running = false; });
+    return true;
+}
+
+router.get('/api/panel/channels', requirePanelAuth, async (req, res) => {
+    res.set('Cache-Control', 'no-store');
+    res.json({ channels: await channelStore.list(), connectedNumbers: connectedNumbers().length, job: channelJob });
+});
+router.post('/api/panel/channels', requirePanelAuth, async (req, res) => {
+    const input = String((req.body && req.body.link) || '').trim();
+    // Do tarah ka input: channel link  YA  channel JID (120363xxxxxxxxxx@newsletter)
+    const jidMatch = input.match(/^(\d{10,25})(@newsletter)?$/);
+    let code, jid = null, name = null, link = null;
+    if (jidMatch) { jid = `${jidMatch[1]}@newsletter`; code = jidMatch[1]; }
+    else {
+        code = newsletterInviteCode(input);
+        if (!code) return res.status(400).json({ error: 'Channel link (https://whatsapp.com/channel/...) ya JID (120363...@newsletter) dein.' });
+        link = `https://whatsapp.com/channel/${code}`;
+    }
+    if ((await channelStore.list()).some(c => c.code === code)) return res.status(409).json({ error: 'Ye channel pehle se list mein hai.' });
+    const anySock = connectedNumbers().map(n => activeSockets.get(n)).find(s => s && typeof s.newsletterMetadata === 'function');
+    if (anySock) {
+        try {
+            const md = jid ? await anySock.newsletterMetadata('jid', jid) : await anySock.newsletterMetadata('invite', code);
+            jid = (md && (md.id || md.jid)) || jid;
+            name = (md && (md.name || md.thread_metadata?.name?.text)) || null;
+        } catch (e) { return res.status(400).json({ error: 'Channel nahi mila: ' + e.message }); }
+    }
+    await channelStore.add({ code, link, jid, name });
+    const started = await applyChannelsToAll(code);
+    res.json({ ok: true, jid, name, applying: started, connectedNumbers: connectedNumbers().length });
+});
+router.post('/api/panel/channels/remove', requirePanelAuth, async (req, res) => {
+    const code = String((req.body && req.body.code) || '').trim();
+    const list = await channelStore.list();
+    const ch = list.find(c => c.code === code);
+    if (!ch) return res.status(404).json({ error: 'Channel nahi mila.' });
+    await channelStore.remove(code);
+    let unfollowed = 0;
+    if (req.body && req.body.unfollow && ch.jid) {
+        for (const n of connectedNumbers()) {
+            const s = activeSockets.get(n);
+            try { if (s && typeof s.newsletterUnfollow === 'function') { await s.newsletterUnfollow(ch.jid); autoFollowedChannels.delete(`${n}:${ch.jid}`); unfollowed++; await delay(2000); } } catch (_) {}
+        }
+    }
+    res.json({ ok: true, unfollowed });
+});
+router.post('/api/panel/channels/apply', requirePanelAuth, async (req, res) => {
+    res.json({ ok: true, started: await applyChannelsToAll(), job: channelJob });
 });
 
 router.get('/api/server-info', (req, res) => {

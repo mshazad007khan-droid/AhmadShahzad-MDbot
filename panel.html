@@ -1,6 +1,76 @@
-<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>AHMAD SHAHZAD Panel</title>
-<style>body{font-family:system-ui;background:#0b0f14;color:#e6edf3;margin:0;padding:20px}input,button{padding:10px;border-radius:8px;border:1px solid #30363d;background:#161b22;color:#e6edf3}pre{background:#161b22;padding:12px;border-radius:8px;overflow:auto}</style></head><body>
-<h2>AHMAD SHAHZAD Panel</h2><input id="t" type="password" placeholder="AHMAD_PANEL_TOKEN"> <button onclick="go()">Load</button>
-<h3>Metrics</h3><pre id="m">-</pre><h3>Logs</h3><pre id="l">-</pre>
-<script>async function go(){const h={'x-panel-token':document.getElementById('t').value};
-for(const [u,id] of [['/api/panel/metrics','m'],['/api/panel/logs?limit=50','l']]){try{const r=await fetch(u,{headers:h});document.getElementById(id).textContent=JSON.stringify(await r.json(),null,2)}catch(e){document.getElementById(id).textContent=String(e)}}}</script></body></html>
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex,nofollow">
+<title>AhmadShahzad-MD Admin Panel</title>
+<style>
+:root{--bg:#07061a;--card:#100d2e;--line:#2b2570;--txt:#eceaff;--mut:#9a95c9;--p:#8a4dff;--b:#18c8ff;--ok:#25d366;--err:#ff6b7d;--g:#ffc83d}
+*{box-sizing:border-box}body{margin:0;background:radial-gradient(1000px 500px at 50% -10%,#241466,var(--bg) 60%);color:var(--txt);font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;padding:16px;line-height:1.5}
+.wrap{max-width:820px;margin:0 auto}h1{font-size:24px;margin:6px 0 2px}.sub{color:var(--mut);margin-bottom:14px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:16px;margin-top:14px}
+h2{font-size:17px;margin:0 0 10px}input{width:100%;padding:12px;border-radius:10px;border:1px solid var(--line);background:#0a0825;color:var(--txt);font-size:15px}
+button{cursor:pointer;border:0;border-radius:10px;padding:11px 16px;font-weight:700;color:#fff;background:linear-gradient(90deg,var(--p),var(--b));font-size:14px}
+button.s{background:#1b1750;border:1px solid var(--line)}button.d{background:#5a1830;border:1px solid #8a2a4a}button:disabled{opacity:.55}
+.row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}.row>input{flex:1;min-width:220px}
+.stat{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:10px}.stat div{background:#0a0825;border:1px solid var(--line);border-radius:12px;padding:10px;text-align:center}
+.stat b{display:block;font-size:22px;color:var(--g)}.stat span{color:var(--mut);font-size:12px}
+.ch{display:flex;gap:10px;justify-content:space-between;align-items:center;border:1px solid var(--line);border-radius:12px;padding:10px;margin-top:8px;background:#0a0825}
+.ch a{color:var(--b);word-break:break-all;font-size:13px}.ch small{color:var(--mut)}
+#msg{margin-top:10px;min-height:20px;font-size:14px}.ok{color:var(--ok)}.er{color:var(--err)}
+pre{background:#0a0825;border:1px solid var(--line);border-radius:12px;padding:12px;overflow:auto;max-height:300px;font-size:12px;margin:0}
+.bar{height:8px;background:#0a0825;border-radius:9px;overflow:hidden;margin-top:8px;border:1px solid var(--line)}.bar i{display:block;height:100%;width:0;background:linear-gradient(90deg,var(--p),var(--b))}
+</style></head><body><div class="wrap">
+<h1>👑 AhmadShahzad-MD Panel</h1><div class="sub">Admin panel — channels, stats aur logs</div>
+
+<div class="card"><h2>🔐 Login</h2>
+  <div class="row"><input id="t" type="password" placeholder="Panel password" autocomplete="current-password"><button id="login">Login</button></div>
+  <div id="msg"></div></div>
+
+<div id="app" style="display:none">
+  <div class="card"><h2>📊 Status</h2><div class="stat" id="stat"></div></div>
+
+  <div class="card"><h2>📢 Channels (auto-follow)</h2>
+    <div class="sub" style="margin:0 0 10px">Yahan channel ka link ya JID add karein — sab connected numbers us channel ko follow kar lenge, aur aage jo bhi naya number pair hoga wo bhi khud follow karega.</div>
+    <div class="row"><input id="link" placeholder="Channel link ya JID (120363...@newsletter)"><button id="add">➕ Add Channel</button></div>
+    <div id="job"></div>
+    <div id="chs"></div>
+    <div class="row" style="margin-top:12px"><button class="s" id="apply">🔄 Sab numbers par dobara apply karein</button></div>
+  </div>
+
+  <div class="card"><h2>🧾 Logs</h2><pre id="logs">-</pre><div class="row" style="margin-top:10px"><button class="s" id="rl">Refresh</button></div></div>
+</div></div>
+
+<script>
+(function(){
+  var $=function(i){return document.getElementById(i)}, TOKEN='';
+  function say(t,c){$('msg').textContent=t||'';$('msg').className=c||''}
+  function api(path,opt){opt=opt||{};opt.headers=Object.assign({'x-panel-token':TOKEN,'Content-Type':'application/json'},opt.headers||{});
+    return fetch(path,opt).then(function(r){return r.json().then(function(j){if(!r.ok)throw new Error(j.error||('HTTP '+r.status));return j})})}
+  function esc(s){return String(s==null?'':s).replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]})}
+  function loadStats(){return api('/api/panel/metrics').then(function(m){
+    var s=m.sessions||{},mem=m.memory||{};var items=[['Connected',s.connected!=null?s.connected:'-'],['Uptime',m.processUptimeSeconds!=null?Math.floor(m.processUptimeSeconds/60)+' min':'-'],['RAM',mem.rssMB!=null?mem.rssMB+' MB':'-'],['Host RAM',m.system&&m.system.hostTotalMemoryMB?m.system.hostTotalMemoryMB+' MB':'-']];
+    $('stat').innerHTML=items.map(function(i){return '<div><b>'+esc(i[1])+'</b><span>'+i[0]+'</span></div>'}).join('')}).catch(function(){})}
+  function loadChannels(){return api('/api/panel/channels').then(function(d){
+    $('chs').innerHTML=d.channels.length?d.channels.map(function(c){return '<div class="ch"><div><b>'+esc(c.name||'Channel')+'</b><br>'+(c.link?'<a href="'+esc(c.link)+'" target="_blank" rel="noopener">'+esc(c.link)+'</a>':'<small>'+esc(c.jid||c.code)+'</small>')+'</div><button class="d" data-c="'+esc(c.code)+'">Remove</button></div>'}).join(''):'<div class="sub" style="margin-top:10px">Abhi koi channel add nahi hai.</div>';
+    Array.prototype.forEach.call($('chs').querySelectorAll('button[data-c]'),function(b){b.onclick=function(){
+      var un=confirm('Channel list se hata dein?\n\nOK = hata do\nCancel = rehne do');if(!un)return;
+      var also=confirm('Connected numbers se bhi is channel ko UNFOLLOW karwayein?\n\nOK = haan unfollow\nCancel = sirf list se hatao');
+      api('/api/panel/channels/remove',{method:'POST',body:JSON.stringify({code:b.getAttribute('data-c'),unfollow:also})}).then(function(r){say('✅ Hata diya'+(r.unfollowed?(' ('+r.unfollowed+' numbers se unfollow)'):''),'ok');loadChannels()}).catch(function(e){say('❌ '+e.message,'er')})}});
+    var j=d.job||{};
+    if(j.running||(j.total&&j.done<j.total)){var pct=j.total?Math.round(j.done/j.total*100):0;$('job').innerHTML='<div class="sub" style="margin-top:10px">⏳ Apply ho raha hai: '+j.done+'/'+j.total+' numbers'+(j.failed?(' · '+j.failed+' fail'):'')+'</div><div class="bar"><i style="width:'+pct+'%"></i></div>'}
+    else $('job').innerHTML=j.total?'<div class="sub ok" style="margin-top:10px">✅ Last apply: '+j.done+'/'+j.total+' numbers</div>':'';
+    return d})}
+  function loadLogs(){api('/api/panel/logs?limit=60').then(function(d){$('logs').textContent=(d.logs||[]).map(function(l){return (l.time||'')+' ['+(l.level||'')+'] '+(l.message||'')}).join('\n')||'-'}).catch(function(){})}
+  var timer=null;
+  function refreshAll(){loadStats();loadChannels();loadLogs()}
+  $('login').onclick=function(){TOKEN=$('t').value.trim();if(!TOKEN){say('Token likhein','er');return}
+    api('/api/panel/channels').then(function(){say('✅ Login ho gaya','ok');$('app').style.display='block';refreshAll();clearInterval(timer);timer=setInterval(function(){loadChannels();loadStats()},5000)})
+    .catch(function(e){say('❌ '+e.message,'er')})};
+  $('t').addEventListener('keydown',function(e){if(e.key==='Enter')$('login').click()});
+  $('add').onclick=function(){var l=$('link').value.trim();if(!l){say('Channel link ya JID likhein','er');return}
+    $('add').disabled=true;say('⏳ Add ho raha hai…');
+    api('/api/panel/channels',{method:'POST',body:JSON.stringify({link:l})}).then(function(r){$('link').value='';say('✅ Channel add ho gaya'+(r.applying?(' — '+r.connectedNumbers+' connected numbers par follow shuru'):''),'ok');loadChannels()})
+    .catch(function(e){say('❌ '+e.message,'er')}).then(function(){$('add').disabled=false})};
+  $('apply').onclick=function(){api('/api/panel/channels/apply',{method:'POST',body:'{}'}).then(function(r){say(r.started?'✅ Apply shuru':'⏳ Pehle se chal raha hai','ok');loadChannels()}).catch(function(e){say('❌ '+e.message,'er')})};
+  $('rl').onclick=loadLogs;
+})();
+</script></body></html>
