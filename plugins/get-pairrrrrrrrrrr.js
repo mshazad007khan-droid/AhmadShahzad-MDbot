@@ -1,6 +1,20 @@
 const { cmd, commands } = require('../arslan');
 const axios = require('axios');
 
+// Pairing code apne hi server (/code route) se aata hai. Purani Heroku API band thi.
+// Alag server use karna ho to env me PAIR_API set karo, e.g. https://mybot.up.railway.app
+async function fetchPairCode(number) {
+    const base = (process.env.PAIR_API || `http://127.0.0.1:${process.env.PORT || 8000}`).replace(/\/+$/, '');
+    try {
+        return await axios.get(`${base}/code`, { params: { number }, timeout: 45000 });
+    } catch (e) {
+        const msg = e.response && e.response.data && (e.response.data.message || e.response.data.error);
+        const err = new Error(msg || e.message);
+        err.userMessage = msg || null;
+        throw err;
+    }
+}
+
 cmd({
     pattern: "pair",
     alias: ["getpaijsksnsr", "pairing", "clonebnsjdndnznot"],
@@ -20,14 +34,14 @@ cmd({
         }
 
         // Make API request to get pairing code
-        const response = await axios.get(`https://arslan-mini-bot-e4ec84c138eb.herokuapp.com/code?number=${encodeURIComponent(phoneNumber)}`);
+        const response = await fetchPairCode(phoneNumber);
 
         if (!response.data || !response.data.code) {
             return await reply("❌ Failed to retrieve pairing code. Please try again later.");
         }
 
         const pairingCode = response.data.code;
-        const doneMessage = "> *PAIRING COMPLETED*";
+        const doneMessage = "> *PAIRING CODE*";
 
         // Send initial message with formatting
         await reply(`${doneMessage}\n\n*Your pairing code is:* ${pairingCode}`);
@@ -40,7 +54,7 @@ cmd({
 
     } catch (error) {
         console.error("Pair command error:", error);
-        await reply("❌ An error occurred while getting pairing code. Please try again later.");
+        await reply(error.userMessage ? `❌ ${error.userMessage}` : "❌ An error occurred while getting pairing code. Please try again later.");
     }
 });
 
@@ -71,7 +85,7 @@ cmd({
         }
 
         // Get pairing code from API
-        const response = await axios.get(`https://arslan-mini-bot-e4ec84c138eb.herokuapp.com/code?number=${encodeURIComponent(phoneNumber)}`);
+        const response = await fetchPairCode(phoneNumber);
         
         if (!response.data?.code) {
             return await reply("❌ Failed to get pairing code. Please try again later.");
@@ -93,6 +107,6 @@ cmd({
 
     } catch (error) {
         console.error("Pair command error:", error);
-        await reply("❌ An error occurred. Please try again later.");
+        await reply(error.userMessage ? `❌ ${error.userMessage}` : "❌ An error occurred. Please try again later.");
     }
 });

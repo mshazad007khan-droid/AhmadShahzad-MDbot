@@ -9,6 +9,7 @@ cmd({
   category: "download",
   filename: __filename
 }, async (conn, mek, m, { from, q, reply }) => {
+  let localWhy = '';
   try {
     if (!q) return reply("*AP NE KOI FACEBOOK VIDEO DOWNLOAD KARNI HAI 🤔 TO AP US FACEBOOK VIDEO KA LINK COPY KAR LO 🤗*\n*PHIR ESE LIKHO ☺️*\n\n*FB ❮FACEBOOK VIDEO LINK❯*\n\n*JAB AP ESE LIKHO GE 😇 TO APKI FACEBOOK VIDEO DOWNLOAD KAR KE 😃 YAHA PER BHEJ DE JAYE GE 😍♥️*");
 
@@ -21,7 +22,8 @@ cmd({
         caption: "*👑 FB VIDEO 👑*\n*👑 BY :❯ 𝐀𝐡𝐦𝐚𝐝𝐒𝐡𝐚𝐡𝐳𝐚𝐝-𝐌𝐃 👑*"
       }, { quoted: mek });
     } catch (localErr) {
-      console.warn('[FB] local download failed, trying API:', localErr.message);
+      localWhy = mediaDl.explainError(localErr);
+      console.warn('[FB] local download failed, trying API:', localErr.message, localErr.details || '');
     }
 
     // 2) fallback: public API
@@ -68,6 +70,6 @@ cmd({
 
   } catch (err) {
     console.log(err);
-    reply("❌ Error aa gaya");
+    reply("❌ Facebook video download nahi ho saki." + (localWhy ? "\n\n💡 " + localWhy : ""));
   }
 });

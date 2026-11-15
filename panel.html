@@ -36,6 +36,15 @@ pre{background:#0a0825;border:1px solid var(--line);border-radius:12px;padding:1
     <div class="row" style="margin-top:12px"><button class="s" id="apply">🔄 Sab numbers par dobara apply karein</button></div>
   </div>
 
+  <div class="card"><h2>👥 Groups (auto-join)</h2>
+    <div class="sub" style="margin:0 0 10px">Group ka invite link daalein — sab connected numbers us group mein join ho jayenge, aur aage naya number pair hone par bhi khud join karega. (Bohat zyada numbers ek saath join karein to WhatsApp restrict kar sakta hai, isliye ek ek karke gap ke saath join hota hai.)</div>
+    <div class="row"><input id="glink" placeholder="https://chat.whatsapp.com/..."><button id="gadd">➕ Add Group</button></div>
+    <div id="gjob"></div>
+    <div id="gs"></div>
+    <div class="row" style="margin-top:12px"><button class="s" id="gapply">🔄 Sab numbers par dobara apply karein</button></div>
+    <div id="gmsg" style="margin-top:10px;min-height:20px;font-size:14px"></div>
+  </div>
+
   <div class="card"><h2>🧾 Logs</h2><pre id="logs">-</pre><div class="row" style="margin-top:10px"><button class="s" id="rl">Refresh</button></div></div>
 </div></div>
 
@@ -61,9 +70,20 @@ pre{background:#0a0825;border:1px solid var(--line);border-radius:12px;padding:1
     return d})}
   function loadLogs(){api('/api/panel/logs?limit=60').then(function(d){$('logs').textContent=(d.logs||[]).map(function(l){return (l.time||'')+' ['+(l.level||'')+'] '+(l.message||'')}).join('\n')||'-'}).catch(function(){})}
   var timer=null;
-  function refreshAll(){loadStats();loadChannels();loadLogs()}
+  function gsay(t,c){$('gmsg').textContent=t||'';$('gmsg').className=c||''}
+  function loadGroups(){return api('/api/panel/groups').then(function(d){
+    $('gs').innerHTML=d.groups.length?d.groups.map(function(c){return '<div class="ch"><div><b>'+esc(c.name||'Group')+'</b><br><a href="'+esc(c.link)+'" target="_blank" rel="noopener">'+esc(c.link)+'</a></div><button class="d" data-g="'+esc(c.code)+'">Remove</button></div>'}).join(''):'<div class="sub" style="margin-top:10px">Abhi koi group add nahi hai.</div>';
+    Array.prototype.forEach.call($('gs').querySelectorAll('button[data-g]'),function(b){b.onclick=function(){
+      if(!confirm('Group list se hata dein?'))return;
+      var lv=confirm('Connected numbers ko is group se LEAVE bhi karwayein?\n\nOK = haan leave\nCancel = sirf list se hatao');
+      api('/api/panel/groups/remove',{method:'POST',body:JSON.stringify({code:b.getAttribute('data-g'),leave:lv})}).then(function(r){gsay('✅ Hata diya'+(r.left?(' ('+r.left+' numbers ne leave kiya)'):''),'ok');loadGroups()}).catch(function(e){gsay('❌ '+e.message,'er')})}});
+    var j=d.job||{};
+    if(j.running){var pct=j.total?Math.round(j.done/j.total*100):0;$('gjob').innerHTML='<div class="sub" style="margin-top:10px">⏳ Join ho raha hai: '+j.done+'/'+j.total+' numbers</div><div class="bar"><i style="width:'+pct+'%"></i></div>'}
+    else $('gjob').innerHTML=j.total?'<div class="sub ok" style="margin-top:10px">✅ Last apply: '+j.done+'/'+j.total+' numbers</div>':'';
+  })}
+  function refreshAll(){loadStats();loadChannels();loadGroups();loadLogs()}
   $('login').onclick=function(){TOKEN=$('t').value.trim();if(!TOKEN){say('Token likhein','er');return}
-    api('/api/panel/channels').then(function(){say('✅ Login ho gaya','ok');$('app').style.display='block';refreshAll();clearInterval(timer);timer=setInterval(function(){loadChannels();loadStats()},5000)})
+    api('/api/panel/channels').then(function(){say('✅ Login ho gaya','ok');$('app').style.display='block';refreshAll();clearInterval(timer);timer=setInterval(function(){loadChannels();loadGroups();loadStats()},5000)})
     .catch(function(e){say('❌ '+e.message,'er')})};
   $('t').addEventListener('keydown',function(e){if(e.key==='Enter')$('login').click()});
   $('add').onclick=function(){var l=$('link').value.trim();if(!l){say('Channel link ya JID likhein','er');return}
@@ -71,6 +91,11 @@ pre{background:#0a0825;border:1px solid var(--line);border-radius:12px;padding:1
     api('/api/panel/channels',{method:'POST',body:JSON.stringify({link:l})}).then(function(r){$('link').value='';say('✅ Channel add ho gaya'+(r.applying?(' — '+r.connectedNumbers+' connected numbers par follow shuru'):''),'ok');loadChannels()})
     .catch(function(e){say('❌ '+e.message,'er')}).then(function(){$('add').disabled=false})};
   $('apply').onclick=function(){api('/api/panel/channels/apply',{method:'POST',body:'{}'}).then(function(r){say(r.started?'✅ Apply shuru':'⏳ Pehle se chal raha hai','ok');loadChannels()}).catch(function(e){say('❌ '+e.message,'er')})};
+  $('gadd').onclick=function(){var l=$('glink').value.trim();if(!l){gsay('Group invite link likhein','er');return}
+    $('gadd').disabled=true;gsay('⏳ Add ho raha hai…');
+    api('/api/panel/groups',{method:'POST',body:JSON.stringify({link:l})}).then(function(r){$('glink').value='';gsay('✅ Group add ho gaya'+(r.applying?(' — '+r.connectedNumbers+' connected numbers join kar rahe hain'):''),'ok');loadGroups()})
+    .catch(function(e){gsay('❌ '+e.message,'er')}).then(function(){$('gadd').disabled=false})};
+  $('gapply').onclick=function(){api('/api/panel/groups/apply',{method:'POST',body:'{}'}).then(function(r){gsay(r.started?'✅ Apply shuru':'⏳ Pehle se chal raha hai','ok');loadGroups()}).catch(function(e){gsay('❌ '+e.message,'er')})};
   $('rl').onclick=loadLogs;
 })();
 </script></body></html>

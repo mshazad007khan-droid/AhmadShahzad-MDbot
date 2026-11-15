@@ -223,8 +223,8 @@ const splitBlocks = (blocks, max) => {
 const LIST_ORDER = ["tools", "owner", "anime", "group", "main", "fun", "emotions",
     "image", "download", "love", "system", "utility", "games", "settings", "general", "islamic", "textfx", "calc", "funzone"];
 
-const ORDER = ["utility", "anime", "main", "owner", "group", "download", "music", "general",
-    "settings", "tools", "image", "sticker", "fun", "games", "love", "emotions", "islamic", "system", "search", "misc"];
+const ORDER = ["aman", "utility", "group", "download", "music", "general",
+    "extra", "tools", "sticker", "fun", "islamic", "search"];
 
 cmd({
     pattern: "menu",
@@ -263,9 +263,10 @@ cmd({
 
         const cats = [...LIST_ORDER.filter(c => grouped[c]), ...Object.keys(grouped).filter(c => !LIST_ORDER.includes(c)).sort()];
 
-        // 🆕 Tappable menus: ".menu" / ".menu 2" / ".menu list" / ".menu <category> [page]"
+        // 🆕 Tappable menus: ".menu" (category buttons) / ".menu 2" / ".menu list" / ".menu <category> [page]"
         // Fail ho to purana text menu chalega.
-        const wantedEarly = String(ctx.text || ctx.q || (ctx.args || []).join(" ") || "").trim().toLowerCase();
+        const CAT_ALIAS = { misc: "utility", anime: "utility", games: "utility", emotions: "utility", system: "utility", settings: "extra", love: "extra", owner: "aman", main: "aman", image: "tools" };
+        const wantedEarly = String(ctx.text || ctx.q || (ctx.args || []).join(" ") || "").trim().toLowerCase().replace(/^\S+/, w => (grouped[w] ? w : (CAT_ALIAS[w] || w))); // asli category ho to alias nahi lagta (ANIME -> anime hi khule)
         try {
             const cm = require("./carousel-menu");
             const parts = wantedEarly.split(/\s+/).filter(Boolean);
@@ -295,13 +296,13 @@ cmd({
         };
 
         // 🆕 ".menu <category>" — sirf us category ki commands, ek hi message mein
-        const wanted = String(ctx.text || ctx.q || (ctx.args || []).join(" ") || "").trim().toLowerCase();
+        const wanted = String(ctx.text || ctx.q || (ctx.args || []).join(" ") || "").trim().toLowerCase().replace(/^\S+/, w => CAT_ALIAS[w] || w);
         const catListText = () => {
             // Pehla harf bold (𝐀), baqi small-caps (ᴅᴍɪɴ)  ->  .𝐀ᴅᴍɪɴ
             const boldFirst = (ch) => /[a-z]/i.test(ch) ? String.fromCodePoint(0x1D400 + ch.toUpperCase().charCodeAt(0) - 65) : ch;
             const pretty = (c) => PREFIX + boldFirst(c[0]) + toSmallCaps(c.slice(1));
-            const SHOW_ORDER = ["owner", "general", "islamic", "anime", "group", "tools", "main", "fun",
-                "download", "love", "games", "image", "emotions", "settings", "system", "utility"];
+            const SHOW_ORDER = ["aman", "general", "islamic", "group", "tools", "fun",
+                "download", "extra", "utility"];
             const ordered = [
                 ...SHOW_ORDER.filter(c => cats.includes(c)),
                 ...cats.filter(c => !SHOW_ORDER.includes(c))
@@ -508,7 +509,7 @@ const MENU_BLOCKS = [
 ┋╰┈⌖ 𝚆ᴏʀʟᴅᴛɪᴍᴇ
 ┗───────────────────𒁍` },
 
-    { cat: "owner", text: `┏━═❲ 𝐎𝐖𝐍𝐄𝐑
+    { cat: "aman", text: `┏━═❲ 𝐎𝐖𝐍𝐄𝐑
 ┋╭┈⌖ 𝙰ɴᴛɪ-ᴄᴀʟʟ
 ┋├┈⌖ 𝙰ᴜᴛᴏʙɪᴏ
 ┋├┈⌖ 𝙱ᴀɴʟɪsᴛ
@@ -554,7 +555,7 @@ const MENU_BLOCKS = [
 ┋╰┈⌖ 𝚅ᴠ
 ┗───────────────────𒁍` },
 
-    { cat: "anime", text: `┏━═❲ 𝐀𝐍𝐈𝐌𝐄
+    { cat: "utility", text: `┏━═❲ 𝐀𝐍𝐈𝐌𝐄
 ┋╭┈⌖ 𝙰ɴɪᴍᴇᴀɪʀɪɴɢ <ɴᴀᴍᴇ>
 ┋├┈⌖ 𝙰ɴɪᴍᴇʙʏʏᴇᴀʀ <ɴᴀᴍᴇ>
 ┋├┈⌖ 𝙰ɴɪᴍᴇᴄʜᴀʀᴀᴄᴛᴇʀs <ɴᴀᴍᴇ>
@@ -641,7 +642,7 @@ const MENU_BLOCKS = [
 ┋╰┈⌖ 𝚆ᴇʟᴄᴏᴍᴇᴘɪᴄ
 ┗───────────────────𒁍` },
 
-    { cat: "main", text: `┏━═❲ 𝐌𝐀𝐈𝐍
+    { cat: "aman", text: `┏━═❲ 𝐌𝐀𝐈𝐍
 ┋╭┈⌖ 𝙰ɪ <ǫᴜᴇsᴛɪᴏɴ>
 ┋├┈⌖ 𝙰ʟɪᴠᴇ
 ┋├┈⌖ 𝙾ɴʟɪɴᴇ
@@ -725,7 +726,7 @@ const MENU_BLOCKS = [
 ┋╰┈⌖ 𝚉ᴏᴅɪᴀᴄsɪɢɴ
 ┗───────────────────𒁍` },
 
-    { cat: "emotions", text: `┏━═❲ 𝐄𝐌𝐎𝐓𝐈𝐎𝐍𝐒
+    { cat: "utility", text: `┏━═❲ 𝐄𝐌𝐎𝐓𝐈𝐎𝐍𝐒
 ┋╭┈⌖ 𝙰ғғɪʀᴍᴀᴛɪᴏɴ
 ┋├┈⌖ 𝙰ɴɢʀʏ
 ┋├┈⌖ 𝙱ɪᴛᴇ
@@ -768,7 +769,7 @@ const MENU_BLOCKS = [
 ┋╰┈⌖ 𝚈ᴇᴇᴛ
 ┗───────────────────𒁍` },
 
-    { cat: "image", text: `┏━═❲ 𝐈𝐌𝐀𝐆𝐄
+    { cat: "tools", text: `┏━═❲ 𝐈𝐌𝐀𝐆𝐄
 ┋╭┈⌖ 𝙰ᴛᴛᴘ <ᴛᴇxᴛ>
 ┋├┈⌖ 𝙱ʟᴜʀ
 ┋├┈⌖ 𝙴ᴍᴏᴊɪᴍɪx
@@ -797,7 +798,7 @@ const MENU_BLOCKS = [
 ┋╰┈⌖ 𝚈ᴛs <ɴᴀᴍᴇ>
 ┗───────────────────𒁍` },
 
-    { cat: "love", text: `┏━═❲ 𝐋𝐎𝐕𝐄
+    { cat: "extra", text: `┏━═❲ 𝐋𝐎𝐕𝐄
 ┋╭┈⌖ 𝙲ʀᴜsʜ
 ┋├┈⌖ 𝙷ᴜɢ
 ┋├┈⌖ 𝙻ᴏᴠᴇ
@@ -805,7 +806,7 @@ const MENU_BLOCKS = [
 ┋╰┈⌖ 𝚂ʜɪᴘ
 ┗───────────────────𒁍` },
 
-    { cat: "system", text: `┏━═❲ 𝐒𝐘𝐒𝐓𝐄𝐌
+    { cat: "utility", text: `┏━═❲ 𝐒𝐘𝐒𝐓𝐄𝐌
 ┋╭┈⌖ 𝙼ᴀᴛʜᴄʜᴇᴄᴋ
 ┋├┈⌖ 𝙼ᴇᴍᴏʀʏᴄʜᴇᴄᴋ
 ┋├┈⌖ 𝙼ᴇɴᴜ <ᴄᴀᴛ>
@@ -825,7 +826,7 @@ const MENU_BLOCKS = [
 ┋╰┈⌖ 𝚄ᴘᴛɪᴍᴇ
 ┗───────────────────𒁍` },
 
-    { cat: "games", text: `┏━═❲ 𝐆𝐀𝐌𝐄𝐒
+    { cat: "utility", text: `┏━═❲ 𝐆𝐀𝐌𝐄𝐒
 ┋╭┈⌖ 𝙵ғ
 ┋├┈⌖ 𝙼ᴄsᴇʀᴠᴇʀ
 ┋├┈⌖ 𝙼ʟʙʙ
@@ -833,7 +834,7 @@ const MENU_BLOCKS = [
 ┋╰┈⌖ 𝚂ᴛᴇᴀᴍ
 ┗───────────────────𒁍` },
 
-    { cat: "settings", text: `┏━═❲ 𝐒𝐄𝐓𝐓𝐈𝐍𝐆𝐒
+    { cat: "extra", text: `┏━═❲ 𝐒𝐄𝐓𝐓𝐈𝐍𝐆𝐒
 ┋╭┈⌖ 𝙰ɴᴛɪᴄᴀʟʟ
 ┋├┈⌖ 𝙰ɴᴛɪᴅᴇʟᴇᴛᴇ
 ┋├┈⌖ 𝙰ᴜᴛᴏʟɪᴋᴇsᴛᴀᴛᴜs

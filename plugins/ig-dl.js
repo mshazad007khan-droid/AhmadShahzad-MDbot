@@ -12,6 +12,7 @@ cmd({
     use: ".igdl <Instagram URL>",
     filename: __filename
 }, async (conn, mek, m, { from, reply, args, q }) => {
+    let localWhy = '';
     try {
         const url = q || m.quoted?.text;
         if (!url || !url.includes("instagram.com")) {
@@ -32,7 +33,8 @@ cmd({
             await conn.sendMessage(from, { react: { text: '✅', key: m.key } });
             return;
         } catch (localErr) {
-            console.warn('[IGDL] local download failed, trying API:', localErr.message);
+            localWhy = mediaDl.explainError(localErr);
+            console.warn('[IGDL] local download failed, trying API:', localErr.message, localErr.details || '');
         }
 
         // 2) fallback: public API
@@ -41,7 +43,7 @@ cmd({
 
         if (!response.data?.status || !response.data.data?.length) {
             await conn.sendMessage(from, { react: { text: '❌', key: m.key } });
-            return reply("Failed to fetch media. Invalid link or private content.");
+            return reply("Failed to fetch media. Invalid link or private content." + (localWhy ? "\n\n💡 " + localWhy : ""));
         }
 
         // Send all media items
@@ -63,7 +65,7 @@ cmd({
     } catch (error) {
         console.error('IGDL Error:', error);
         await conn.sendMessage(from, { react: { text: '❌', key: m.key } });
-        reply("❌ Download failed. Try again later.");
+        reply("❌ Download failed." + (localWhy ? "\n\n💡 " + localWhy : " Try again later."));
     }
 });
 

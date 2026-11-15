@@ -162,49 +162,7 @@ cmd({
     return ctx.reply(`📢 *Notice set:*\n\n${notice}`);
 });
 
-// ===========================================================
-// 6. FORWARDALL — Sab groups me forward
-// ===========================================================
-cmd({
-    pattern: 'forwardall',
-    alias: ['fwdall'],
-    desc: 'Owner: Reply kiye msg ko sab groups me forward',
-    category: 'owner',
-    react: '↗️',
-    filename: __filename
-}, async (conn, mek, m, ctx) => {
-    if (!isOwner(ctx)) return ctx.reply('⛔ Owner only.');
-
-    const quoted = mek.message?.extendedTextMessage?.contextInfo?.quotedMessage;
-    if (!quoted) return ctx.reply('❌ Kisi message pe reply karke use karo.');
-
-    const sockets = global.activeSockets || new Map();
-    if (!sockets.size) return ctx.reply('❌ Koi account nahi.');
-
-    await ctx.reply('📤 *Forwarding to all groups…*');
-
-    let sent = 0, failed = 0;
-    for (const [num, sock] of sockets) {
-        try {
-            if (!sock?.user) continue;
-            const chats = await sock.groupFetchAllParticipating();
-            for (const jid of Object.keys(chats)) {
-                try {
-                    await sock.sendMessage(jid, {
-                        forward: {
-                            key: mek.message.extendedTextMessage.contextInfo.stanzaId,
-                            message: quoted
-                        }
-                    });
-                    sent++;
-                    await new Promise(r => setTimeout(r, 1200));
-                } catch { failed++; }
-            }
-        } catch {}
-    }
-
-    return ctx.reply(`✅ *Forward done.*\n\n📤 Sent: *${sent}*\n❌ Failed: *${failed}*`);
-});
+// FORWARDALL ab plugins/forwardall-links.js mein hai
 
 // ===========================================================
 // 7. BROADCAST2 — Advanced broadcast (with delay)

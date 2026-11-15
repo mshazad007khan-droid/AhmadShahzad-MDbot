@@ -167,27 +167,7 @@ cmd({
     } catch (e) { return ctx.reply('❌ ' + e.message); }
 });
 
-// ===========================================================
-// 6. ANTIDELETE STATUS
-// ===========================================================
-cmd({
-    pattern: 'antidelete',
-    alias: ['ad'],
-    desc: 'Anti-delete status check karo',
-    category: 'settings',
-    react: '🛡️',
-    filename: __filename
-}, async (conn, mek, m, ctx) => {
-    const { getUserConfigFromMongoDB } = require('../lib/database');
-    const cfg = await getUserConfigFromMongoDB(conn.user.id.split(':')[0]);
-    return ctx.reply([
-        '🛡️ *Anti-Delete Status*',
-        '',
-        `Status: *${cfg.ANTI_DELETE === 'true' ? '🟢 ON' : '🔴 OFF'}*`,
-        '',
-        'Deleted messages auto-recover ho jayengi (agar on ho).'
-    ].join('\n'));
-});
+// (antidelete ab plugins/anti-delete.js mein hai)
 
 // ===========================================================
 // 7. TAGME

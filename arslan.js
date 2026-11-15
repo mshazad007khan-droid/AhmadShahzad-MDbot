@@ -3,6 +3,9 @@ const commands = [];
 const commandMap = new Map();
 const aliasMap = new Map();
 
+// Categories jo ek mein mila di gayi hain (menu mein sab "utility" ke andar dikhte hain)
+const MERGED_CATEGORIES = {};   // menu categories jaise the waise rahenge (merge band)
+
 function normalize(value) {
     return String(value || '').trim().toLowerCase().replace(/^\.+/, '');
 }
@@ -19,7 +22,10 @@ function cmd(info, func) {
     data.dontAddCommandList = Boolean(data.dontAddCommandList);
     data.desc = data.desc || '';
     data.fromMe = Boolean(data.fromMe);
-    data.category = data.category || 'misc';
+    data.category = String(data.category || 'utility').toLowerCase();
+    // Owner-only commands ko category badalne par bhi owner-only hi rakho (main.js yahi flag dekhta hai)
+    if (data.category === 'owner') data.ownerOnly = true;
+    data.category = MERGED_CATEGORIES[data.category] || data.category;
 
     // Event-only handlers are allowed, but they are never command matches.
     if (!data.pattern) {
@@ -57,4 +63,4 @@ function findCommand(name) {
     return commandMap.get(key) || aliasMap.get(key) || null;
 }
 
-module.exports = { cmd, AddCommand: cmd, Function: cmd, commands, commandMap, aliasMap, findCommand, normalize };
+module.exports = { MERGED_CATEGORIES, cmd, AddCommand: cmd, Function: cmd, commands, commandMap, aliasMap, findCommand, normalize };

@@ -5,6 +5,7 @@
 // Agar fail ho jaye to khud-ba-khud normal text menu bhej deta hai.
 
 const fs = require('fs');
+const path = require('path');
 const { cmd, commands } = require('../arslan');
 const config = require('../config');
 const { getBotPic } = require('../lib/botpic');
@@ -17,7 +18,7 @@ const CATEGORY_ICONS = {
     owner: '👑', group: '👥', download: '📥', music: '🎵', anime: '🎌', fun: '🎮',
     games: '🎲', love: '💞', emotions: '😊', islamic: '🕌', tools: '🧰', utility: '🛠️',
     image: '🖼️', system: '💻', search: '🔎', misc: '📦', personal: '👤',
-    textfx: '🔤', calc: '🧮', funzone: '🎉'
+    textfx: '🔤', calc: '🧮', funzone: '🎉', extra: '✨'
 };
 const CATEGORY_ORDER = ['main', 'general', 'settings', 'owner', 'group', 'download', 'music', 'anime',
     'sticker', 'fun', 'games', 'love', 'emotions', 'islamic', 'tools', 'utility', 'image', 'system', 'search', 'misc', 'textfx', 'calc', 'funzone'];
@@ -92,7 +93,7 @@ const blockedInGroup = (jid) => String(jid).endsWith('@g.us') && String(process.
 const MEDIA_TTL_MS = 20 * 60 * 1000;
 const UPLOAD_TIMEOUT_MS = 4000;
 const mediaCache = new Map();
-function getHeaderMedia(conn, prepareWAMessageMedia) {
+function getHeaderMedia(conn, prepareWAMessageMedia, timeoutMs) {
     const pic = getBotPic(conn) || {};
     let mtime = 0;
     try { if (pic.url && !/^https?:/i.test(pic.url)) mtime = fs.statSync(pic.url).mtimeMs; } catch (_) {}
@@ -101,7 +102,7 @@ function getHeaderMedia(conn, prepareWAMessageMedia) {
     if (hit && Date.now() - hit.at < MEDIA_TTL_MS) return hit.promise;
     const upload = Promise.race([
         prepareWAMessageMedia({ image: pic }, { upload: conn.waUploadToServer }).then(r => r.imageMessage),
-        new Promise((_, rej) => setTimeout(() => rej(new Error('image upload timeout')), UPLOAD_TIMEOUT_MS))
+        new Promise((_, rej) => setTimeout(() => rej(new Error('image upload timeout')), timeoutMs || UPLOAD_TIMEOUT_MS))
     ]);
     const entry = { at: Date.now(), promise: upload };
     mediaCache.set(key, entry);
@@ -112,20 +113,28 @@ function getHeaderMedia(conn, prepareWAMessageMedia) {
 
 // Owner card ki apni photo (data/assets/owner.jpg). Na mile to bot ki photo chalegi.
 let ownerMediaCache = null;
-function getOwnerMedia(conn, prepareWAMessageMedia) {
+function getOwnerMedia(conn, prepareWAMessageMedia, timeoutMs) {
     try {
         const f = config.OWNER_IMAGE_PATH;
-        if (!f || !fs.existsSync(f)) return getHeaderMedia(conn, prepareWAMessageMedia);
+        if (!f || !fs.existsSync(f)) return getHeaderMedia(conn, prepareWAMessageMedia, timeoutMs);
         const key = f + '|' + fs.statSync(f).mtimeMs;
         if (ownerMediaCache && ownerMediaCache.key === key && Date.now() - ownerMediaCache.at < MEDIA_TTL_MS) return ownerMediaCache.promise;
         const promise = Promise.race([
             prepareWAMessageMedia({ image: { url: f } }, { upload: conn.waUploadToServer }).then(r => r.imageMessage),
-            new Promise((_, rej) => setTimeout(() => rej(new Error('owner image upload timeout')), 8000))
+            new Promise((_, rej) => setTimeout(() => rej(new Error('owner image upload timeout')), timeoutMs || 8000))
         ]);
         ownerMediaCache = { key, at: Date.now(), promise };
         promise.catch(() => { if (ownerMediaCache && ownerMediaCache.promise === promise) ownerMediaCache = null; });
         return promise;
     } catch (_) { return getHeaderMedia(conn, prepareWAMessageMedia); }
+}
+
+// CONNECTED message ke liye video header (config.CONNECT_VIDEO ya assets/connect.mp4). Na mile to image chalegi.
+function connectVideoSource() {
+    const v = String(config.CONNECT_VIDEO || '').trim();
+    if (v) return /^https?:/i.test(v) ? { url: v } : (fs.existsSync(v) ? { url: path.resolve(v) } : null);
+    const local = path.join(__dirname, '..', 'assets', 'connect.mp4');
+    return fs.existsSync(local) ? { url: local } : null;
 }
 
 const quickReply = (text, id) => ({ name: 'quick_reply', buttonParamsJson: JSON.stringify({ display_text: text, id }) });
@@ -246,9 +255,70 @@ async function buildCarousel(conn, page, pageCards, total, totalPages, baileys, 
 }
 
 // Carousel bhejta hai. Success par true, fail par false (throw nahi karta).
+// ---------- CATEGORY VIEW: commands sirf text me, neeche 4 link buttons (links yahan se badlein) ----------
+const CATEGORY_LINK_BUTTONS = [
+    { button: '🌐 PORTFOLIO (Open first site)', url: 'https://www.google.com/search?q=ahmadshahzad+portfolio' },
+    { button: '✈️ TELEGRAM',                    url: 'https://t.me/ahmadteachx' },
+    { button: '📢 VIEW CHANNEL',                url: config.CHANNEL_LINK || 'https://whatsapp.com/channel/0029VbCx2Sb5q08a3fe3KZ42' },
+    { button: '💬 CHAT OWNER',                  url: 'https://wa.me/923264931117' }
+];
+
+async function sendCategoryView(conn, mek, from, cat) {
+    const baileys = require('@whiskeysockets/baileys');
+    const { proto, prepareWAMessageMedia, generateWAMessageFromContent } = baileys;
+    const IM = proto.Message.InteractiveMessage;
+    const p = PREFIX();
+    const { grouped } = groupCommands();
+    if (!grouped[cat]) return false;
+    const list = grouped[cat].slice().sort((a, b) => a.localeCompare(b));
+    const icon = CATEGORY_ICONS[cat] || '📌';
+    const line = '--------------------------------';
+    const head = `《 ${icon} ${cat.toUpperCase()} 》\n${line}\n`;
+    const foot = `${line}\n📦 ${list.length} commands`;
+
+    // lambi category (jaise tools) ho to text kai hisson me; aakhri hissa image + 4 buttons ke saath
+    const MAX = 3000;
+    const chunks = [];
+    let cur = '';
+    for (const c of list) {
+        const row = `➤ ${p}${c}\n`;
+        if ((head + cur + row + foot).length > MAX) { chunks.push(cur); cur = ''; }
+        cur += row;
+    }
+    chunks.push(cur);
+    for (let i = 0; i < chunks.length - 1; i++) {
+        await conn.sendMessage(from, { text: (i === 0 ? head : `《 ${icon} ${cat.toUpperCase()} · ${i + 1}/${chunks.length} 》\n${line}\n`) + chunks[i] }, { quoted: mek });
+    }
+    const last = chunks.length - 1;
+    const body = (last === 0 ? head : `《 ${icon} ${cat.toUpperCase()} · ${last + 1}/${chunks.length} 》\n${line}\n`) + chunks[last] + foot;
+
+    let header = IM.Header.fromObject({ title: '', subtitle: '', hasMediaAttachment: false });
+    try {
+        const imageMessage = await getHeaderMedia(conn, prepareWAMessageMedia);
+        header = IM.Header.fromObject({ title: '', subtitle: '', hasMediaAttachment: true, imageMessage });
+    } catch (_) { /* image ke bina bhi chalega */ }
+
+    const interactive = IM.create({
+        header,
+        body: IM.Body.create({ text: body }),
+        footer: IM.Footer.create({ text: footerText() }),
+        nativeFlowMessage: IM.NativeFlowMessage.fromObject({ buttons: CATEGORY_LINK_BUTTONS.map(b => urlButton(b.button, b.url)) })
+    });
+    const msg = generateWAMessageFromContent(from, {
+        viewOnceMessage: { message: { messageContextInfo: { deviceListMetadata: {}, deviceListMetadataVersion: 2 }, interactiveMessage: interactive } }
+    }, { quoted: mek, userJid: conn.user && conn.user.id });
+    await relayInteractive(conn, from, msg);
+    return true;
+}
+
 async function sendCarouselMenu(conn, mek, m, ctx, pageArg, catFilter) {
     const from = (ctx && ctx.from) || m.chat;
     if (blockedInGroup(from)) return false;
+    // Category par tap/type: commands text me + 4 link buttons (carousel nahi)
+    if (catFilter) {
+        try { if (await sendCategoryView(conn, mek, from, catFilter)) return true; }
+        catch (e) { console.error('category view error:', e && e.message); }
+    }
     const { cards, total } = buildCategoryCards(catFilter);
     const totalPages = Math.max(1, Math.ceil(cards.length / CARDS_PER_PAGE));
     let page = parseInt(pageArg, 10);
@@ -292,7 +362,7 @@ function ownerCardText() {
     return t;
 }
 
-async function sendOwnerCard(conn, jid, quoted) {
+async function sendOwnerCard(conn, jid, quoted, opts) {
     if (blockedInGroup(jid)) return false;
     try {
         const baileys = require('@whiskeysockets/baileys');
@@ -303,11 +373,21 @@ async function sendOwnerCard(conn, jid, quoted) {
         if (link) buttons.push(urlButton('💬 Chat Owner', link));
         for (const l of OWNER_LINKS) buttons.push(urlButton(l.button, l.url));
 
+        // Connect message par image zaroor chahiye: fresh login par upload slow hota hai,
+        // isliye lamba timeout (25s) aur 3 koshishein. Normal menu me purana 4s timeout.
         let header = IM.Header.fromObject({ title: '', subtitle: '', hasMediaAttachment: false });
-        try {
-            const imageMessage = await getOwnerMedia(conn, prepareWAMessageMedia);
-            header = IM.Header.fromObject({ title: '', subtitle: '', hasMediaAttachment: true, imageMessage });
-        } catch (_) { /* image ke bina bhi chalega */ }
+        const tries = (opts && opts.connectMode) ? 3 : 1;
+        // Owner ki photo header mein. Connect par fresh login slow hota hai: lamba timeout + 3 koshishein.
+        for (let t = 1; t <= tries; t++) {
+            try {
+                const imageMessage = await getOwnerMedia(conn, prepareWAMessageMedia, (opts && opts.connectMode) ? 25000 : undefined);
+                header = IM.Header.fromObject({ title: '', subtitle: '', hasMediaAttachment: true, imageMessage });
+                break;
+            } catch (e) {
+                console.warn(`[OWNER-IMG] image upload attempt ${t}/${tries} failed:`, e && e.message);
+                if (t < tries) await new Promise(r => setTimeout(r, 1500));
+            }
+        }
 
         const interactive = IM.create({
             header,
@@ -327,7 +407,7 @@ async function sendOwnerCard(conn, jid, quoted) {
 }
 
 // Saari categories ek tappable list mein (connect message ke neeche aur ".menu list" par)
-async function sendCategoryPicker(conn, jid, quoted, bodyText) {
+async function sendCategoryPicker(conn, jid, quoted, bodyText, opts) {
     if (blockedInGroup(jid)) return false;
     try {
         const baileys = require('@whiskeysockets/baileys');
@@ -335,21 +415,7 @@ async function sendCategoryPicker(conn, jid, quoted, bodyText) {
         const IM = proto.Message.InteractiveMessage;
         const p = PREFIX();
         const { grouped, cats, total } = groupCommands();
-
-        const rows = cats.map(c => ({
-            title: `${CATEGORY_ICONS[c] || '📌'} ${c.toUpperCase()}`,
-            description: `${grouped[c].length} commands`,
-            id: `${p}menu ${c}`
-        }));
-        const sections = [];
-        for (let i = 0; i < rows.length; i += 10) {
-            sections.push({ title: i === 0 ? 'Categories' : `Categories (${i / 10 + 1})`, rows: rows.slice(i, i + 10) });
-        }
-        const buttons = [
-            { name: 'single_select', buttonParamsJson: JSON.stringify({ title: '📂 Open Categories', sections }) },
-            quickReply('📜 Full Menu', p + 'menu'),
-            quickReply('🏓 Ping', p + 'ping')
-        ];
+        const channelLink = config.CHANNEL_LINK || (config.AUTO_FOLLOW_CHANNELS && config.AUTO_FOLLOW_CHANNELS[0]) || '';
 
         let header = IM.Header.fromObject({ title: '', subtitle: '', hasMediaAttachment: false });
         try {
@@ -357,16 +423,38 @@ async function sendCategoryPicker(conn, jid, quoted, bodyText) {
             header = IM.Header.fromObject({ title: '', subtitle: '', hasMediaAttachment: true, imageMessage });
         } catch (_) { /* image ke bina bhi chalega */ }
 
-        const interactive = IM.create({
-            header,
-            body: IM.Body.create({ text: bodyText || `*${botName()}*\n📂 Categories (${cats.length}) · ${total} commands\nNeeche button dabao aur category chuno 👇` }),
-            footer: IM.Footer.create({ text: footerText() }),
-            nativeFlowMessage: IM.NativeFlowMessage.fromObject({ buttons })
-        });
-        const msg = generateWAMessageFromContent(jid, {
-            viewOnceMessage: { message: { messageContextInfo: { deviceListMetadata: {}, deviceListMetadataVersion: 2 }, interactiveMessage: interactive } }
-        }, { quoted, userJid: conn.user && conn.user.id });
-        await relayInteractive(conn, jid, msg);
+        const send = async (body, buttons, withHeader) => {
+            const interactive = IM.create({
+                header: withHeader ? header : IM.Header.fromObject({ title: '', subtitle: '', hasMediaAttachment: false }),
+                body: IM.Body.create({ text: body }),
+                footer: IM.Footer.create({ text: footerText() }),
+                nativeFlowMessage: IM.NativeFlowMessage.fromObject({ buttons })
+            });
+            const msg = generateWAMessageFromContent(jid, {
+                viewOnceMessage: { message: { messageContextInfo: { deviceListMetadata: {}, deviceListMetadataVersion: 2 }, interactiveMessage: interactive } }
+            }, { quoted, userJid: conn.user && conn.user.id });
+            await relayInteractive(conn, jid, msg);
+        };
+
+        // Connect message: sirf 2 button — Categories + View Channel
+        if (opts && opts.connectMode) {
+            const buttons = [quickReply('📂 Categories', p + 'menu list')];
+            if (channelLink) buttons.push(urlButton('📢 View Channel', channelLink));
+            await send(bodyText || `*${botName()}*\n📂 Categories (${cats.length}) · ${total} commands`, buttons, true);
+            return true;
+        }
+
+        // Categories: har category ek tappable button (ek message mein max 10 button)
+        const PER_MSG = 10;
+        const catButtons = cats.map(c => quickReply(`${CATEGORY_ICONS[c] || '📌'} ${c.toUpperCase()} (${grouped[c].length})`, `${p}menu ${c}`));
+        const chunks = [];
+        for (let i = 0; i < catButtons.length; i += PER_MSG) chunks.push(catButtons.slice(i, i + PER_MSG));
+        for (let i = 0; i < chunks.length; i++) {
+            const body = i === 0
+                ? (bodyText || `*${botName()}*\n📂 Categories (${cats.length}) · ${total} commands\nKisi bhi category par tap karo 👇`)
+                : `📂 Categories (${i + 1}/${chunks.length}) 👇`;
+            await send(body, chunks[i], i === 0);
+        }
         return true;
     } catch (e) {
         console.error('category picker error:', e && e.message);

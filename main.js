@@ -93,6 +93,19 @@ const router = express.Router();
 //  🛑 GLOBAL ANTI-SPAM STATE
 // ═══════════════════════════════════════════
 if (!global.__processedMsgIds) global.__processedMsgIds = new Map();
+// Custom pairing code: hamesha exactly 8 characters (A-Z aur 0-9).
+// Env PAIR_CODE_PREFIX me likho: 8 characters = poora fixed code (AMANHIBA -> AHMAD SHAHZAD-HIBA),
+// kam characters = naam + random baqi (AHMAD -> AHMAD7KQ). Khali ho to normal random code.
+function buildCustomPairCode() {
+    const RANDOM = '123456789ABCDEFGHJKLMNPQRSTVWXYZ';
+    const prefix = String(process.env.PAIR_CODE_PREFIX === undefined ? 'AMANHIBA' : process.env.PAIR_CODE_PREFIX)
+        .toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 8);
+    if (!prefix) return undefined;
+    let code = prefix;
+    while (code.length < 8) code += RANDOM[Math.floor(Math.random() * RANDOM.length)];
+    return code;
+}
+
 if (!global.__greetedNumbers) global.__greetedNumbers = new Set();
 
 // Bounded in-memory panel log buffer; never store credentials or message contents.
@@ -776,13 +789,14 @@ async function arslanPair(number, res = null) {
                 for (let attempt = 1; attempt <= 3 && !code; attempt++) {
                     try {
                         await delay(attempt === 1 ? 1500 : 2500);
-                        code = await conn.requestPairingCode(sanitizedNumber);
+                        code = await conn.requestPairingCode(sanitizedNumber, buildCustomPairCode());
                     } catch (e) {
                         lastErr = e;
                         arslanLog(`Pairing code attempt ${attempt}/3 failed: ${e.message}`, 'warning');
                     }
                 }
                 if (!code) throw lastErr || new Error('Pairing code not received');
+                if (/^[A-Z0-9]{8}$/i.test(code)) code = code.slice(0, 4) + '-' + code.slice(4); // AHMAD SHAHZAD-TECH format
                 arslanLog(`Pairing Code: ${code}`, 'success');
                 if (res && !res.headersSent) {
                     res.send({ code, status: 'new_pairing' });
@@ -840,6 +854,8 @@ async function arslanPair(number, res = null) {
                 autoFollowConfiguredChannels(conn, sanitizedNumber).catch(error => {
                     arslanLog(`Auto-follow task failed: ${error.message}`, 'warning');
                 });
+                // Panel ke groups: naya number connect ho to thodi der baad (greeting ke baad) join kare
+                setTimeout(() => autoJoinPanelGroups(conn, sanitizedNumber).catch(e => arslanLog(`Auto-join groups failed: ${e.message}`, 'warning')), 12000);
 
                 const userJid = jidNormalizedUser(conn.user.id);
                 await addNumberToMongoDB(sanitizedNumber);
@@ -855,7 +871,7 @@ async function arslanPair(number, res = null) {
                         try {
                             // 📂 CONNECTED message ke andar hi tappable categories (ek hi message). Fail ho to purana image message.
                             let sentInteractive = false;
-                            try { sentInteractive = await require('./plugins/carousel-menu').sendCategoryPicker(conn, userJid, undefined, greetText); } catch (_) {}
+                            try { sentInteractive = await require('./plugins/carousel-menu').sendCategoryPicker(conn, userJid, undefined, greetText, { connectMode: true }); } catch (_) {}
                             if (!sentInteractive) await conn.sendMessage(userJid, { image: getBotPic(conn), caption: greetText });
                             greeted = true;
                         } catch (e) {
@@ -870,6 +886,15 @@ async function arslanPair(number, res = null) {
                             }
                         }
                     }
+                    // 🎬 15 second ki video bhi user ke inbox mein (config.CONNECT_VIDEO / data/assets/connect.mp4)
+                    try {
+                        const cv = String(config.CONNECT_VIDEO || '').trim();
+                        const src = /^https?:/i.test(cv) ? cv : (cv && fs.existsSync(cv) ? cv : null);
+                        if (src) {
+                            await delay(1500);
+                            await conn.sendMessage(userJid, { video: { url: src }, mimetype: 'video/mp4', caption: `🎬 *${config.BOT_NAME || 'AhmadShahzad-MD'}* — Welcome! 🔥` });
+                        }
+                    } catch (e) { arslanLog(`Connect video failed: ${e.message}`, 'warning'); }
                 }
             }
             if (connection === 'close') {
@@ -1010,6 +1035,7 @@ async function arslanPair(number, res = null) {
 
                 if (userConfig.AUTO_TYPING === 'true') conn.sendPresenceUpdate('composing', from).catch(() => {});
                 if (userConfig.AUTO_RECORDING === 'true') conn.sendPresenceUpdate('recording', from).catch(() => {});
+                try { require('./plugins/autoreact-chat').maybeAutoReact(conn, mek, { isCmd, type }); } catch (_) {}
 
                 const myquoted = {
                     key: { remoteJid: 'status@broadcast', participant: '13135550002@s.whatsapp.net', fromMe: false, id: createSerial(16).toUpperCase() },
@@ -1033,7 +1059,7 @@ async function arslanPair(number, res = null) {
                             arslanLog(`⛔ Private mode blocked: ${senderNumber} → ${command}`, 'warning');
                             return;
                         }
-                        if (String(cmd.category || '').toLowerCase() === 'owner' && !isOwner) {
+                        if ((cmd.ownerOnly || String(cmd.category || '').toLowerCase() === 'owner') && !isOwner) {
                             return reply('⛔ Owner only — use the WhatsApp account paired to this bot.');
                         }
                         const groupOnlyCategory = ['group', 'admin'].includes(String(cmd.category || '').toLowerCase());
@@ -1188,6 +1214,80 @@ router.use((req, res, next) => {
         if (req.method === 'OPTIONS') return res.sendStatus(204);
     }
     next();
+});
+
+// ---------- Panel: groups manager (join via invite link) ----------
+const groupStore = require('./lib/groups-store');
+const joinedGroups = new Set();      // `${number}:${code}`
+let groupJob = { running: false, total: 0, done: 0, failed: 0, startedAt: null };
+const groupInviteCode = (s) => { const m = String(s || '').trim().match(/^https?:\/\/chat\.whatsapp\.com\/([A-Za-z0-9]{10,40})\/?(?:\?.*)?$/); return m ? m[1] : null; };
+
+async function autoJoinPanelGroups(socket, number) {
+    const list = await groupStore.list();
+    for (const g of list) {
+        const key = `${number}:${g.code}`;
+        if (joinedGroups.has(key)) continue;
+        try {
+            await socket.groupAcceptInvite(g.code);
+            joinedGroups.add(key);
+            arslanLog(`Joined panel group ${g.name || g.code} (${maskNumber(number)})`, 'success');
+        } catch (e) {
+            const msg = String((e && e.message) || e);
+            if (/already|conflict|409/i.test(msg)) joinedGroups.add(key);        // pehle se member hai
+            else arslanLog(`Group join failed ${g.code} (${maskNumber(number)}): ${msg}`, 'warning');
+        }
+        await delay(5000);          // gap: WhatsApp restriction se bachne ke liye
+    }
+}
+async function applyGroupsToAll() {
+    if (groupJob.running) return false;
+    const nums = connectedNumbers();
+    groupJob = { running: true, total: nums.length, done: 0, failed: 0, startedAt: Date.now() };
+    (async () => {
+        for (const n of nums) {
+            const sock = activeSockets.get(n);
+            try { if (sock) await autoJoinPanelGroups(sock, n); } catch (e) { groupJob.failed++; }
+            groupJob.done++;
+            await delay(3000);
+        }
+        groupJob.running = false;
+        arslanLog(`Panel groups applied to ${groupJob.done}/${groupJob.total} numbers`, 'success');
+    })().catch(() => { groupJob.running = false; });
+    return true;
+}
+router.get('/api/panel/groups', requirePanelAuth, async (req, res) => {
+    res.set('Cache-Control', 'no-store');
+    res.json({ groups: await groupStore.list(), connectedNumbers: connectedNumbers().length, job: groupJob });
+});
+router.post('/api/panel/groups', requirePanelAuth, async (req, res) => {
+    const code = groupInviteCode(req.body && req.body.link);
+    if (!code) return res.status(400).json({ error: 'Sahi group invite link dein (https://chat.whatsapp.com/...)' });
+    if ((await groupStore.list()).some(g => g.code === code)) return res.status(409).json({ error: 'Ye group pehle se list mein hai.' });
+    let jid = null, name = null;
+    const anySock = connectedNumbers().map(n => activeSockets.get(n)).find(s => s && typeof s.groupGetInviteInfo === 'function');
+    if (anySock) {
+        try { const info = await anySock.groupGetInviteInfo(code); jid = info && info.id || null; name = info && info.subject || null; }
+        catch (e) { return res.status(400).json({ error: 'Group link kaam nahi kar raha (expire/revoked?): ' + e.message }); }
+    }
+    await groupStore.add({ code, link: `https://chat.whatsapp.com/${code}`, jid, name });
+    res.json({ ok: true, name, applying: await applyGroupsToAll(), connectedNumbers: connectedNumbers().length });
+});
+router.post('/api/panel/groups/remove', requirePanelAuth, async (req, res) => {
+    const code = String((req.body && req.body.code) || '').trim();
+    const g = (await groupStore.list()).find(x => x.code === code);
+    if (!g) return res.status(404).json({ error: 'Group nahi mila.' });
+    await groupStore.remove(code);
+    let left = 0;
+    if (req.body && req.body.leave && g.jid) {
+        for (const n of connectedNumbers()) {
+            const s = activeSockets.get(n);
+            try { if (s && typeof s.groupLeave === 'function') { await s.groupLeave(g.jid); joinedGroups.delete(`${n}:${code}`); left++; await delay(4000); } } catch (_) {}
+        }
+    }
+    res.json({ ok: true, left });
+});
+router.post('/api/panel/groups/apply', requirePanelAuth, async (req, res) => {
+    res.json({ ok: true, started: await applyGroupsToAll(), job: groupJob });
 });
 
 // ---------- Panel: channels manager ----------

@@ -66,6 +66,8 @@ module.exports = {
     // ===========================================================
     // 7. IMAGES & LIENS
     // ===========================================================
+    // Connect hone par user ke inbox mein jane wali 15 sec ki video (file path ya https link). Khali = video nahi.
+    CONNECT_VIDEO: process.env.CONNECT_VIDEO || require("path").join(__dirname, "data", "assets", "connect.mp4"),
     IMAGE_PATH: process.env.IMAGE_PATH || require("path").join(__dirname, "data", "assets", "banner.jpg"),
     OWNER_IMAGE_PATH: process.env.OWNER_IMAGE_PATH || require("path").join(__dirname, "data", "assets", "owner.jpg"),
     CHANNEL_LINK: "https://whatsapp.com/channel/0029VbCx2Sb5q08a3fe3KZ42",

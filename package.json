@@ -1,6 +1,6 @@
 {
   "name": "ahmadshahzad-md-bot",
-  "version": "2.9.0",
+  "version": "2.9.1",
   "description": "AhmadShahzad-MD WhatsApp Bot — persistent settings, anime metadata and video-link commands",
   "main": "index.js",
   "scripts": {
