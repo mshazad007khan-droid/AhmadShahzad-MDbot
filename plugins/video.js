@@ -3,6 +3,7 @@ const yts = require('yt-search');
 const { cmd } = require('../arslan');
 const { fakevCard } = require('../lib/fakevCard');
 const mediaDl = require('../lib/media-dl');
+const vh = require('../lib/vidhelper');
 
 cmd({
     pattern: 'video',
@@ -32,13 +33,7 @@ cmd({
             return reply('❌ Video 20 minute se lambi hai. Chhoti video try karo.');
         }
 
-        const caption =
-`╭━━━〔 🎬 𝐕𝐈𝐃𝐄𝐎 𝐅𝐎𝐔𝐍𝐃 〕━━━╮
-┃ 📌 ${vid.title}
-┃ ⏱️ ${vid.timestamp || 'Unknown'}
-┃ 📺 ${(vid.author && vid.author.name) || 'Unknown'}
-┃ ⚡ Video bhej raha hoon…
-╰━━━━━━━━━━━━━━━━━━━━╯`;
+        const caption = vh.infoCaption('🎬', 'VIDEO FOUND', vid, ['⚡ Video bhej raha hoon…']);
 
         if (vid.thumbnail) {
             await conn.sendMessage(from, { image: { url: vid.thumbnail }, caption }, { quoted: mek }).catch(() => reply(caption));

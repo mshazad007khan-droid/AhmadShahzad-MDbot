@@ -9,8 +9,10 @@ ENV NODE_ENV=production \
 
 # git: some npm deps are fetched from github, python3/ffmpeg: yt-dlp + media tools
 RUN apt-get update \
- && apt-get install -y --no-install-recommends git ca-certificates python3 ffmpeg libatomic1 \
- && rm -rf /var/lib/apt/lists/*
+ && apt-get install -y --no-install-recommends git ca-certificates python3 python3-pip ffmpeg libatomic1 \
+ && rm -rf /var/lib/apt/lists/* \
+ && pip3 install --no-cache-dir --break-system-packages -U yt-dlp \
+ && yt-dlp --version
 
 WORKDIR /app
 COPY . .

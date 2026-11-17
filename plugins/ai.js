@@ -29,7 +29,7 @@ cmd({
     pattern: 'ai',
     alias: ['gpt', 'chat', 'ask', 'llm'],
     desc: 'Ask free AI (no API key)',
-    category: 'main',
+    category: 'ai',
     react: '🤖',
     use: '.ai <question>',
     filename: __filename
@@ -55,5 +55,27 @@ cmd({
         return reply(`🤖 *${model.toUpperCase()}*\n\n${String(answer).slice(0, 3500)}`);
     } catch (e) {
         return reply(`❌ AI fail: ${e.message}`);
+    }
+});
+// ─────────────── .aiimg : AI se photo banwao (Pollinations — free, bina API key) ───────────────
+cmd({
+    pattern: 'aiimg', alias: ['imagine', 'txt2img', 'aiphoto', 'generateimg'], desc: 'AI se photo banwao (free)',
+    category: 'ai', react: '🎨', use: '.aiimg <description>', filename: __filename
+}, async (conn, mek, m, { args, reply, from }) => {
+    const prompt = args.join(' ').trim();
+    if (!prompt) return reply('🎨 *AI IMAGE*\n\nUsage: `.aiimg ek sher jungle mein, sunset`');
+    await conn.sendMessage(from, { react: { text: '⏳', key: mek.key } });
+    const seed = Math.floor(Math.random() * 999999);
+    const url = `https://image.pollinations.ai/prompt/${encodeURIComponent(prompt)}?width=1024&height=1024&seed=${seed}&nologo=true`;
+    try {
+        const axios = require('axios');
+        const res = await axios.get(url, { responseType: 'arraybuffer', timeout: 60000, headers: { 'User-Agent': 'Mozilla/5.0' } });
+        const buf = Buffer.from(res.data);
+        if (buf.length < 2000) throw new Error('empty image');
+        await conn.sendMessage(from, { react: { text: '✅', key: mek.key } });
+        return conn.sendMessage(from, { image: buf, caption: `🎨 *${prompt}*\n✨ 𝐀𝐈 𝐈𝐌𝐀𝐆𝐄 𝐁𝐲 𝐀𝐡𝐦𝐚𝐝𝐒𝐡𝐚𝐡𝐳𝐚𝐝-𝐌𝐃` }, { quoted: mek });
+    } catch (e) {
+        await conn.sendMessage(from, { react: { text: '❌', key: mek.key } });
+        return reply('❌ AI image nahi ban saki: ' + e.message + '\n(Ye free public API hai, kabhi slow/down bhi ho sakti hai.)');
     }
 });
