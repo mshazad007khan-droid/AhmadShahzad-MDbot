@@ -33,15 +33,15 @@ cmd({
         }
 
         const caption =
-`╔ஜ۩▒█ 𝐀𝐡𝐦𝐚𝐝𝐒𝐡𝐚𝐡𝐳𝐚𝐝-𝐌𝐃 █▒۩ஜ╗
-┃🎬 VIDEO FOUND
-┃📌 Title: ${vid.title}
-┃⏱️ Duration: ${vid.timestamp}
-┃⚡ Sending video...
-╰━━━━━━━━━━━━━━⊷`;
+`╭━━━〔 🎬 𝐕𝐈𝐃𝐄𝐎 𝐅𝐎𝐔𝐍𝐃 〕━━━╮
+┃ 📌 ${vid.title}
+┃ ⏱️ ${vid.timestamp || 'Unknown'}
+┃ 📺 ${(vid.author && vid.author.name) || 'Unknown'}
+┃ ⚡ Video bhej raha hoon…
+╰━━━━━━━━━━━━━━━━━━━━╯`;
 
         if (vid.thumbnail) {
-            await conn.sendMessage(from, { image: { url: vid.thumbnail }, caption }, { quoted: fakevCard }).catch(() => reply(caption));
+            await conn.sendMessage(from, { image: { url: vid.thumbnail }, caption }, { quoted: mek }).catch(() => reply(caption));
         } else {
             await reply(caption);
         }
@@ -52,10 +52,10 @@ cmd({
         await conn.sendMessage(from, {
             video: buffer,
             mimetype: 'video/mp4',
-            caption: `🎬 *${vid.title}*\n\n> © 𝐀𝐡𝐦𝐚𝐝𝐒𝐡𝐚𝐡𝐳𝐚𝐝-𝐌𝐃`
-        }, { quoted: fakevCard });
+            caption: `╭━━━〔 🎬 𝐕𝐈𝐃𝐄𝐎 〕━━━╮\n┃ ${vid.title}\n╰━━━━━━━━━━━━━━━━━━━━╯`
+        }, { quoted: mek });
     } catch (err) {
-        console.error('[VIDEO]', err.details || err.message);
+        console.error('[VIDEO]', (err.details && err.details.join(' | ')) || err.message);
         const why = mediaDl.explainError(err);
         reply('❌ Video download nahi ho saki.' + (why ? '\n\n💡 ' + why : '\nThori der baad try karo.'));
     }

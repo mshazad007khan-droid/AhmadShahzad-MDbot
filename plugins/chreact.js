@@ -30,7 +30,9 @@ async (conn, mek, m, { args, reply }) => {
         }
 
         const link = args[0];
-        const emoji = Array.from(args.slice(1).join(''))[0]; // single emoji
+        const emojis = reactor.extractEmojis(args.slice(1).join(' '));
+        const emoji = emojis[0];
+        if (!emoji) return reply('❌ *Emoji likho!*\nMisal: .chreact <link> ❤️');
 
         if (!link.includes('whatsapp.com/channel/')) {
             return reply('❌ *Invalid channel link!*');

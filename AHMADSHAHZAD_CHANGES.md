@@ -24,3 +24,27 @@
 - Song: data/menu-voice/menu.mp3 (new)  |  Connect video: data/assets/connect.mp4 (15s, user ke inbox mein connect par)
 - Panel: Groups (auto-join) — group invite link add karo, sab connected numbers + naye pair hone wale numbers join karte hain
 - Fixes: .owner card (opts bug), .zikrstart (backtick bug)
+
+## v5 — big fix pack (2026-11)
+- Pair code: hamesha fixed `AHMADXMD` (WhatsApp mein AHMA-DXMD dikhta hai). Koi env variable ab isay nahi badalta.
+- .vv fix: view-once media bot aate hi cache kar leta hai (lib/extras-hooks.js) -> .vv/.ok/.nice hamesha chalta hai; sirf owner ke apne inbox mein aata hai.
+- .antidelete: delete hua message ab DEFAULT mein owner ke apne inbox mein aata hai (media bhi). `.antidelete chat` = usi chat mein, `off` = band.
+- .statussave on/off: owner ke status par koi react kare to wo status owner ke inbox mein save (default ON). Sirf wahi status jo bot online hone ke baad aaye.
+- Menu: ab ek hi swipe carousel (info card + har category ka card). Next/First Page buttons hata diye. `Open All` dabao to poori list. Env CAROUSEL_CARDS_PER_MSG (default 10): ek message mein kitne cards; zyada hon to agle carousel khud aa jate hain.
+- Naye commands: .cartoon .movie .romance .couple .islamicvid (video-pack), .bgmusicvoice, .fancyname .vipsymbols, .statussave, pranks: .hackprank .virusprank .bombprank .ghostprank .locationprank .policeprank .simprank
+- .bgmusicvoice: pehle ye likho, phir voice note bhejo -> har baar nayi music ke saath wapas aati hai. `.bgmusicvoice on/off` = hamesha. data/bgmusic/ mein apni mp3 rakh sakte ho.
+- Download captions: VIP box style (main.js applyFooter); welcome/goodbye naya VIP design (lib/welcome.js).
+- .video/.drama: ytdl-core fallback + saaf error wajah; islamic video errors ab asli wajah batate hain.
+- .chreact: channel follow karke retry, emoji validation. Channel poll vote: Baileys mein vote API na ho to saaf message.
+- npm run check ab sab files check karta hai.
+
+## v6
+- .vv ab usi chat mein media bhejta hai.
+- Connect par ek lambi VIP list (saari commands); .menu = swipe carousel (3 messages, button nahi).
+- Video commands ek category (video): cartoon movie romance couple islamicvid videosong video drama naatvideo animevideo ...
+- photoedit (40) / videoedit (32) / audioedit (15) = 88 naye edit commands (enhance, hd, sharpen, vtrim, vspeed, bass, nightcore ...). Media par reply karke use karo.
+- bgmusic: data/bgmusic/bgmusic1-3.mp3; `.bgmusicvoice 2`; music 10% awaaz.
+- .raju -> .ahmad (raju alias bhi chalta hai).
+- Welcome/goodbye: DP card, har baar nayi shayari, default ON.
+- YouTube block: data/cookies.txt rakho ya YTDLP_COOKIES_B64 / YTDLP_PROXY env.
+- Total 606+ commands.

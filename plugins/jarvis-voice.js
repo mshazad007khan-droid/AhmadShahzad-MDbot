@@ -153,7 +153,7 @@ async function handleTTS(conn, mek, ctx, input, defaultVoice) {
             'Use: .tts jarvis salam bhai\n' +
             'Use: .tts english-m Hello boss\n' +
             'Use: .jarvis Hello boss\n' +
-            'Use: .raju Kya haal hai'
+            'Use: .ahmad Kya haal hai'
         );
     }
 
@@ -249,16 +249,16 @@ cmd({
 });
 
 // ============================================
-// .RAJU
+// .AHMAD
 // ============================================
 
 cmd({
-    pattern: 'raju',
-    alias: ['rajuvoice'],
-    desc: 'Raju voice',
+    pattern: 'ahmad',
+    alias: ['raju', 'rajuvoice', 'ahmadvoice'],
+    desc: 'Ahmad voice',
     category: 'fun',
     react: '🎤',
-    use: '.raju <text>',
+    use: '.ahmad <text>',
     filename: __filename
 }, async (conn, mek, m, ctx) => {
     return handleTTS(
@@ -280,7 +280,7 @@ cmd({
 }, async (conn, mek, m, ctx) => {
     return ctx.reply(
         '🎙️ *𝐀𝐡𝐦𝐚𝐝𝐒𝐡𝐚𝐡𝐳𝐚𝐝-𝐌𝐃 VOICES*\n\n' +
-        '🇵🇰 Urdu male: `jarvis`, `raju`, `male`\n' +
+        '🇵🇰 Urdu male: `jarvis`, `ahmad`, `male`\n' +
         '🇵🇰 Urdu female: `uzma`, `female`\n' +
         '🇮🇳 Hindi male: `hindi`\n' +
         '🇮🇳 Hindi female: `hindi-f`\n' +

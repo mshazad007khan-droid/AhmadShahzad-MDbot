@@ -33,19 +33,26 @@ cmd({
         }
 
         await reply('🔎 Drama search ho raha hai, please wait…');
-        const search = await yts(query);
-        const video = (search.videos || []).find(item => Number(item.seconds) >= 900);
-        if (!video) return reply('❌ 15 minutes ya usse lamba suitable drama nahi mila.');
+        let video = null;
+        for (const q of [`${query} full episode`, query, `${query} drama`]) {
+            try {
+                const search = await yts(q);
+                const vids = search.videos || [];
+                video = vids.find(item => Number(item.seconds) >= 900) || vids.find(item => Number(item.seconds) >= 420);
+            } catch (_) { /* agla query */ }
+            if (video) break;
+        }
+        if (!video) return reply('❌ Is naam ka suitable drama nahi mila. Naam thoda badal kar likho (jaise: Ertugrul episode 1).');
 
         const caption = [
-            '╭━━〔 🎬 AHMAD SHAHZAD DRAMA DOWNLOADER 〕━━╮',
+            '╭━━━〔 🎬 𝐃𝐑𝐀𝐌𝐀 𝐃𝐎𝐖𝐍𝐋𝐎𝐀𝐃𝐄𝐑 〕━━━╮',
             `┃ 🎞️ Title: ${video.title}`,
             `┃ ⏱️ Duration: ${video.timestamp}`,
             `┃ 👁️ Views: ${Number(video.views || 0).toLocaleString()}`,
             `┃ 📺 Channel: ${video.author?.name || 'Unknown'}`,
             '┃',
             '┃ ⏳ Download shuru hai... (3-10 min lag sakte hain)',
-            '╰━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━╯',
+            '╰━━━━━━━━━━━━━━━━━━━━╯',
             `\n${config.BOT_FOOTER || '© 𝐀𝐡𝐦𝐚𝐝𝐒𝐡𝐚𝐡𝐳𝐚𝐝-𝐌𝐃'}`
         ].join('\n');
 
@@ -64,7 +71,7 @@ cmd({
 
             const title = cleanFileName(video.title);
             const mb = (dl.size / 1048576).toFixed(0);
-            const cap = `🎬 *${video.title}*\n📦 ${mb} MB · ${dl.height}p\n\n${config.BOT_FOOTER || '𝐀𝐡𝐦𝐚𝐝𝐒𝐡𝐚𝐡𝐳𝐚𝐝-𝐌𝐃'}`;
+            const cap = `╭━━━〔 🎬 𝐃𝐑𝐀𝐌𝐀 〕━━━╮\n┃ ${video.title}\n┃ 📦 ${mb} MB · ${dl.height}p\n╰━━━━━━━━━━━━━━━━━━━━╯`;
             try {
                 await conn.sendMessage(chat, { video: { url: dl.path }, mimetype: 'video/mp4', caption: cap }, { quoted: mek });
             } catch (e) {
@@ -74,7 +81,7 @@ cmd({
             }
             await conn.sendMessage(chat, { react: { text: '✅', key: mek.key } }).catch(() => {});
         } catch (error) {
-            console.error('[AHMAD SHAHZAD DRAMA] Failed:', error.details || error.message);
+            console.error('[AHMAD SHAHZAD DRAMA] Failed:', (error.details && error.details.join(' | ')) || error.message);
             await conn.sendMessage(chat, { react: { text: '❌', key: mek.key } }).catch(() => {});
             const why = mediaDl.explainError(error);
             await reply('❌ Drama download/send nahi ho saki.' + (why ? '\n\n💡 ' + why : '\nThori der baad dobara try karo.'));

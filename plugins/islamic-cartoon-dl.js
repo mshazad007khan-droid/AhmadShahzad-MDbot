@@ -10,14 +10,16 @@ const wait = (ms) => new Promise(r => setTimeout(r, ms));
 
 async function downloadWithRetry(url, format = '360', retries = 3) {
     // 1) LOCAL (no API key needed) via yt-dlp
+    let localErr = null;
     try {
         const local = await mediaDl.downloadVideo(url, Number(format) || 360);
         if (local.buffer.length <= mediaDl.MAX_BYTES) return { buffer: local.buffer };
     } catch (e) {
+        localErr = e;
         console.warn('[ISLAMIC-DL] local download failed:', (e.details || [e.message]).join(' | '));
     }
     // 2) optional paid API (only if key configured)
-    if (!API_KEY) throw new Error('LOCAL_DOWNLOAD_FAILED');
+    if (!API_KEY) throw (localErr || new Error('LOCAL_DOWNLOAD_FAILED'));
     for (let i = 0; i < retries; i++) {
         try {
             const { data } = await axios.get(DL_API, {
@@ -213,9 +215,8 @@ cmd({
 
     } catch (err) {
         console.error('[NAAT VIDEO] Download failed:', err.code || err.response?.status || 'request error');
-        await ctx.reply((err.message === 'ISLAMIC_DL_API_KEY_NOT_CONFIGURED' || err.message === 'LOCAL_DOWNLOAD_FAILED')
-            ? '❌ Video downloader is not configured on this deployment.'
-            : '❌ Video download service is temporarily unavailable. Try again later.');
+        const why = mediaDl.explainError(err);
+        await ctx.reply('❌ Video download nahi ho saki.' + (why ? '\n\n💡 ' + why : '\nThori der baad dobara try karo.'));
     }
 });
 
@@ -280,9 +281,8 @@ cmd({
 
     } catch (err) {
         console.error('[ISLAMIC VIDEO] Download failed:', err.code || err.response?.status || 'request error');
-        await ctx.reply((err.message === 'ISLAMIC_DL_API_KEY_NOT_CONFIGURED' || err.message === 'LOCAL_DOWNLOAD_FAILED')
-            ? '❌ Video downloader is not configured on this deployment.'
-            : '❌ Video download service is temporarily unavailable. Try again later.');
+        const why = mediaDl.explainError(err);
+        await ctx.reply('❌ Video download nahi ho saki.' + (why ? '\n\n💡 ' + why : '\nThori der baad dobara try karo.'));
     }
 });
 
@@ -321,8 +321,7 @@ cmd({
 
     } catch (err) {
         console.error('[PROPHET VIDEO] Download failed:', err.code || err.response?.status || 'request error');
-        await ctx.reply((err.message === 'ISLAMIC_DL_API_KEY_NOT_CONFIGURED' || err.message === 'LOCAL_DOWNLOAD_FAILED')
-            ? '❌ Video downloader is not configured on this deployment.'
-            : '❌ Video download service is temporarily unavailable. Try again later.');
+        const why = mediaDl.explainError(err);
+        await ctx.reply('❌ Video download nahi ho saki.' + (why ? '\n\n💡 ' + why : '\nThori der baad dobara try karo.'));
     }
 });

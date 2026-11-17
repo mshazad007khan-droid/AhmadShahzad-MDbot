@@ -105,6 +105,8 @@ const argHint = (c) => {
 
 const getCategoryEmoji = (category) => {
     const cat = category.toLowerCase();
+    if (cat.includes("video")) return "🎬";
+    if (cat.includes("prank")) return "😈";
     if (cat.includes("audio") || cat.includes("voice") || cat.includes("sound") || cat.includes("music")) return "🎵";
     if (cat.includes("download") || cat.includes("dl")) return "📥";
     if (cat.includes("group") || cat.includes("gc")) return "👥";
@@ -156,7 +158,7 @@ const DESIGN = {
     LIST_BOTTOM: "╰╍╍╍╍╍╍╍╍╍╍┈⊷",
     LIST_PER_ROW: 2,
 
-    USE_STATIC_MENU: true,   // true = neeche MENU_BLOCKS wali list (khud edit karein); false = commands se auto banega
+    USE_STATIC_MENU: false,   // true = neeche MENU_BLOCKS wali list (khud edit karein); false = commands se auto banega
 
     FOOTER: "©𝐏𝐨𝐰𝐞𝐫𝐝 𝐁𝐲 𝐀𝐡𝐦𝐚𝐝𝐒𝐡𝐚𝐡𝐳𝐚𝐝-𝐌𝐃",   // null = config.BOT_FOOTER ya "© Powered by BOT"
     SORT_COMMANDS: true,     // true = A-Z, false = jaise plugins mein likhe hain
@@ -220,7 +222,7 @@ const splitBlocks = (blocks, max) => {
     return out;
 };
 
-const LIST_ORDER = ["tools", "owner", "anime", "group", "main", "fun", "emotions",
+const LIST_ORDER = ["video", "prank", "voice", "name", "tools", "owner", "anime", "group", "main", "fun", "emotions",
     "image", "download", "love", "system", "utility", "games", "settings", "general", "islamic", "textfx", "calc", "funzone"];
 
 const ORDER = ["aman", "utility", "group", "download", "music", "general",

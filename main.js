@@ -54,7 +54,7 @@ const { AsyncLocalStorage } = require('async_hooks');
 const footerStore = new AsyncLocalStorage();
 const FOOTER_POWERED = '©𝐏𝐨𝐰𝐞𝐫𝐝 𝐁𝐲 𝐀𝐡𝐦𝐚𝐝𝐒𝐡𝐚𝐡𝐳𝐚𝐝-𝐌𝐃';
 const FOOTER_DOWNLOADED = '©𝐃𝐨𝐰𝐧𝐥𝐨𝐚𝐝𝐞𝐝 𝐁𝐲 𝐀𝐡𝐦𝐚𝐝𝐒𝐡𝐚𝐡𝐳𝐚𝐝-𝐌𝐃';
-const DOWNLOAD_CATEGORIES = ['download', 'downloader'];   // aur category yahan add kar sakte hain
+const DOWNLOAD_CATEGORIES = ['download', 'downloader', 'video'];   // aur category yahan add kar sakte hain
 const footerFor = (category) => DOWNLOAD_CATEGORIES.includes(String(category || '').toLowerCase()) ? FOOTER_DOWNLOADED : FOOTER_POWERED;
 const escapeRegExp = (t) => String(t).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 function applyFooter(content, footer) {
@@ -80,6 +80,13 @@ function applyFooter(content, footer) {
         const cap = typeof content.caption === 'string' ? content.caption : '';
         if (hasOurFooter(cap)) return content;
         const base = stripOld(cap);
+        // Download commands: caption ko VIP box mein daalo (sirf agar plugin ne pehle se box nahi banaya)
+        if (footer === FOOTER_DOWNLOADED && base && !/[╭┏╔]/.test(base)) {
+            const rows = base.split('\n').map(l => l.trim()).filter(Boolean)
+                .map(l => `┃ ${l.replace(/^\*+|\*+$/g, '')}`);
+            const boxed = `╭━━━〔 📥 𝐃𝐎𝐖𝐍𝐋𝐎𝐀𝐃𝐄𝐃 〕━━━╮\n${rows.join('\n')}\n╰━━━━━━━━━━━━━━━━━━━━╯`;
+            return { ...content, caption: `${boxed}\n\n${line}` };
+        }
         return { ...content, caption: base ? `${base}\n\n${line}` : line };
     }
     return content;
@@ -93,18 +100,9 @@ const router = express.Router();
 //  🛑 GLOBAL ANTI-SPAM STATE
 // ═══════════════════════════════════════════
 if (!global.__processedMsgIds) global.__processedMsgIds = new Map();
-// Custom pairing code: hamesha exactly 8 characters (A-Z aur 0-9).
-// Env PAIR_CODE_PREFIX me likho: 8 characters = poora fixed code (AMANHIBA -> AHMAD SHAHZAD-HIBA),
-// kam characters = naam + random baqi (AHMAD -> AHMAD7KQ). Khali ho to normal random code.
-function buildCustomPairCode() {
-    const RANDOM = '123456789ABCDEFGHJKLMNPQRSTVWXYZ';
-    const prefix = String(process.env.PAIR_CODE_PREFIX === undefined ? 'AMANHIBA' : process.env.PAIR_CODE_PREFIX)
-        .toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 8);
-    if (!prefix) return undefined;
-    let code = prefix;
-    while (code.length < 8) code += RANDOM[Math.floor(Math.random() * RANDOM.length)];
-    return code;
-}
+// Pairing code: HAMESHA fixed -> AHMADXMD (WhatsApp mein AHMA-DXMD dikhta hai). Koi env variable isay nahi badalta.
+const FIXED_PAIR_CODE = 'AHMADXMD';
+function buildCustomPairCode() { return FIXED_PAIR_CODE; }
 
 if (!global.__greetedNumbers) global.__greetedNumbers = new Set();
 
@@ -717,6 +715,8 @@ async function arslanPair(number, res = null) {
         socketCreationTime.set(sanitizedNumber, Date.now());
         activeSockets.set(sanitizedNumber, conn);
         arslanStore.bind(conn.ev);
+        conn.arslanStore = arslanStore;   // vv / antidelete / statussave isi se asli message dhoondte hain
+        try { require('./lib/extras-hooks').attach(conn, arslanStore); } catch (e) { arslanLog(`extras hooks failed: ${e.message}`, 'warning'); }
 
         setupCallHandlers(conn, number);
         setupAutoRestart(conn, number);
@@ -839,7 +839,7 @@ async function arslanPair(number, res = null) {
         });
 
         conn.ev.on('messages.update', async (updates) => {
-            await handleAntidelete(conn, updates, arslanStore);
+            try { await handleAntidelete(conn, updates, arslanStore); } catch (e) { arslanLog(`antidelete: ${e.message}`, 'warning'); }
         });
 
         // ═══════════════════════════════════════════
@@ -871,8 +871,11 @@ async function arslanPair(number, res = null) {
                         try {
                             // 📂 CONNECTED message ke andar hi tappable categories (ek hi message). Fail ho to purana image message.
                             let sentInteractive = false;
-                            try { sentInteractive = await require('./plugins/carousel-menu').sendCategoryPicker(conn, userJid, undefined, greetText, { connectMode: true }); } catch (_) {}
-                            if (!sentInteractive) await conn.sendMessage(userJid, { image: getBotPic(conn), caption: greetText });
+                            // Connect par: pehle chhota CONNECTED message, phir EK lambi VIP list mein saari commands
+                            try { await conn.sendMessage(userJid, { image: getBotPic(conn), caption: greetText }); } catch (_) { await conn.sendMessage(userJid, { text: greetText }); }
+                            try { await conn.sendMessage(userJid, { text: require('./plugins/carousel-menu').fullListText() }); }
+                            catch (e) { arslanLog(`Full command list failed: ${e.message}`, 'warning'); }
+                            sentInteractive = true;
                             greeted = true;
                         } catch (e) {
                             arslanLog(`Greeting (image) attempt ${attempt} failed: ${e.message}`, 'warning');

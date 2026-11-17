@@ -1,7 +1,6 @@
 // plugins/carousel-menu.js
 // Swipe-able carousel menu (cards) with tappable command buttons + pagination.
-//   .cmenu          -> page 1 (info card + category cards)
-//   .cmenu 2        -> page 2 ...
+//   .cmenu / .menu  -> ek hi swipe carousel (info card + har category ka card). Page/Next button nahi.
 // Agar fail ho jaye to khud-ba-khud normal text menu bhej deta hai.
 
 const fs = require('fs');
@@ -18,10 +17,10 @@ const CATEGORY_ICONS = {
     owner: '👑', group: '👥', download: '📥', music: '🎵', anime: '🎌', fun: '🎮',
     games: '🎲', love: '💞', emotions: '😊', islamic: '🕌', tools: '🧰', utility: '🛠️',
     image: '🖼️', system: '💻', search: '🔎', misc: '📦', personal: '👤',
-    textfx: '🔤', calc: '🧮', funzone: '🎉', extra: '✨'
+    textfx: '🔤', calc: '🧮', funzone: '🎉', extra: '✨', video: '🎬', prank: '😈', voice: '🎙️', name: '✍️', videoedit: '🎞️', photoedit: '🖼️', audioedit: '🎧'
 };
 const CATEGORY_ORDER = ['main', 'general', 'settings', 'owner', 'group', 'download', 'music', 'anime',
-    'sticker', 'fun', 'games', 'love', 'emotions', 'islamic', 'tools', 'utility', 'image', 'system', 'search', 'misc', 'textfx', 'calc', 'funzone'];
+    'video', 'videoedit', 'photoedit', 'audioedit', 'sticker', 'fun', 'prank', 'voice', 'name', 'games', 'love', 'emotions', 'islamic', 'tools', 'utility', 'image', 'system', 'search', 'misc', 'textfx', 'calc', 'funzone'];
 // -------------------------------------------------
 
 const PREFIX = () => config.PREFIX || '.';
@@ -43,6 +42,9 @@ function groupCommands() {
         if (!c.pattern || c.dontAddCommandList) continue;
         let cat = String(c.category || 'misc').toLowerCase();
         if (cat === 'downloader') cat = 'download';
+        // Video wali sab commands ek jagah (cartoon / movie / naat / drama / video / song-video ...)
+        if (['download', 'islamic', 'anime', 'video', 'fun', 'music'].includes(cat) && /(video|vid$|vids$|drama|movie|film|cartoon|naat|clip|reel)/.test(c.pattern.toLowerCase())) cat = 'video';
+        if (/prank/.test(c.pattern)) cat = 'prank';
         const key = cat + ':' + c.pattern;
         if (seen.has(key)) continue;
         seen.add(key);
@@ -189,15 +191,22 @@ function textMenu(page, pageCards, total, totalPages) {
     return t.trim();
 }
 
-async function buildCarousel(conn, page, pageCards, total, totalPages, baileys, catFilter) {
+// VIP small-caps / bold helpers (menu ki line style ke liye)
+const SC = { a: "ᴀ", b: "ʙ", c: "ᴄ", d: "ᴅ", e: "ᴇ", f: "ғ", g: "ɢ", h: "ʜ", i: "ɪ", j: "ᴊ", k: "ᴋ", l: "ʟ", m: "ᴍ", n: "ɴ", o: "ᴏ", p: "ᴘ", q: "ǫ", r: "ʀ", s: "s", t: "ᴛ", u: "ᴜ", v: "ᴠ", w: "ᴡ", x: "x", y: "ʏ", z: "ᴢ" };
+const smallCaps = (t) => String(t || '').split('').map(ch => SC[ch.toLowerCase()] || ch).join('');
+const boldText = (t) => String(t || '').replace(/[A-Za-z]/g, ch => { const c = ch.charCodeAt(0); return String.fromCodePoint(c <= 90 ? 0x1D400 + (c - 65) : 0x1D41A + (c - 97)); });
+const CARD_PREVIEW = 22;   // card par kitni commands ke naam dikhen (baaki "Open All" se)
+
+// Ek hi carousel: info card + har category ka ek card. Next/Prev page koi nahi — bas side par swipe karo.
+// Cards CARDS_PER_MSG se zyada hon to baaki cards agle carousel mein khud-ba-khud chale jate hain (button dabana nahi padta).
+async function buildCarousels(conn, baileys) {
     const { proto, prepareWAMessageMedia } = baileys;
     const IM = proto.Message.InteractiveMessage;
     const p = PREFIX();
+    const { grouped, cats, total } = groupCommands();
 
-    // Header image ek baar upload karke sab cards mein use hoti hai
     let media = null;
     try { media = { imageMessage: await getHeaderMedia(conn, prepareWAMessageMedia) }; } catch (_) { /* image ke bina bhi chalega */ }
-
     const header = () => IM.Header.fromObject({ title: '', subtitle: '', hasMediaAttachment: !!media, ...(media || {}) });
     const makeCard = (body, buttons) => ({
         header: header(),
@@ -206,52 +215,48 @@ async function buildCarousel(conn, page, pageCards, total, totalPages, baileys, 
         nativeFlowMessage: IM.NativeFlowMessage.fromObject({ buttons })
     });
 
-    const cards = [];
+    const all = [];
+    // 1) Info card
+    const owner = ownerLink(true);
+    const info =
+        `╭━━━〔 💎 ${boldText(botName())} 💎 〕━━━╮\n` +
+        `┃ 👑 ${smallCaps('owner')}    ➜ ${config.OWNER_NAME || '-'}\n` +
+        `┃ ⚡ ${smallCaps('prefix')}   ➜ ${p}\n` +
+        `┃ 📦 ${smallCaps('commands')} ➜ ${total}\n` +
+        `┃ 📂 ${smallCaps('categories')} ➜ ${cats.length}\n` +
+        `┃ ⏱️ ${smallCaps('uptime')}   ➜ ${uptimeText()}\n` +
+        `┃ 🕒 ${smallCaps('time')}     ➜ ${new Date().toLocaleTimeString('en-US', { timeZone: config.TIME_ZONE || 'Asia/Karachi' })}\n` +
+        `╰━━━━━━━━━━━━━━━━━━━━╯\n` +
+        `➡️ ${smallCaps('swipe right for all categories')} ➡️`;
+    const infoBtns = [quickReply('👑 Owner', p + 'owner')];
+    if (owner) infoBtns.push(urlButton('💬 Chat Owner', owner));
+    infoBtns.push(quickReply('🏓 Ping', p + 'ping'));
+    all.push(makeCard(info, infoBtns));
 
-    // 1) Info card (sirf page 1 par)
-    if (page === 1 && !catFilter) {
-        const owner = ownerLink(true);
-        const info =
-            `《 💎 ${botName()} 》\n` +
-            `----------------------------------------\n` +
-            `👑 Owner   : ${config.OWNER_NAME || '-'}\n` +
-            `⚡ Prefix  : ${p}\n` +
-            `📦 Commands: ${total}\n` +
-            `⏱️ Uptime  : ${uptimeText()}\n` +
-            `🕒 Time    : ${new Date().toLocaleTimeString('en-US', { timeZone: config.TIME_ZONE || 'Asia/Karachi' })}\n` +
-            `----------------------------------------\n` +
-            `➡️ Swipe for commands ⬅️`;
-        const btns = [quickReply('👑 Owner', p + 'owner')];
-        if (owner) btns.push(urlButton('💬 Chat Owner', owner));
-        btns.push(quickReply('🏓 Ping', p + 'ping'));
-        cards.push(makeCard(info, btns));
+    // 2) Har category ek card: commands ki list + "Open All"
+    for (const cat of cats) {
+        const list = grouped[cat].slice().sort((a, b) => a.localeCompare(b));
+        const shown = list.slice(0, CARD_PREVIEW);
+        const rows = shown.map(x => `│ ✦ ${smallCaps(x)}`);
+        if (list.length > CARD_PREVIEW) rows.push(`│ ✨ +${list.length - CARD_PREVIEW} ${smallCaps('more — open all')}`);
+        const body = `╭═══❰ ${CATEGORY_ICONS[cat] || '📌'} ${boldText(cat.toUpperCase())} ❱═══╮\n${rows.join('\n')}\n╰═══⟡ ${list.length} ${smallCaps('commands')} ⟡═══╯`;
+        const btns = [quickReply(`📂 Open All ${cat.toUpperCase()}`, `${p}menu ${cat}`)];
+        shown.slice(0, 2).forEach(x => btns.push(quickReply(p + x, p + x)));
+        all.push(makeCard(body, btns));
     }
 
-    // 2) Category cards: list + tappable buttons
-    for (const c of pageCards) {
-        const body = `《 ${c.title} 》\n\n` + c.commands.map(x => `➤ ${x}`).join('\n');
-        cards.push(makeCard(body, c.commands.map(x => quickReply(p + x, p + x))));
+    const per = Math.max(2, Math.min(30, parseInt(process.env.CAROUSEL_CARDS_PER_MSG, 10) || 10));
+    const out = [];
+    for (let i = 0; i < all.length; i += per) {
+        const chunk = all.slice(i, i + per);
+        const idx = out.length + 1, parts = Math.ceil(all.length / per);
+        out.push(IM.create({
+            body: IM.Body.create({ text: `*${boldText(botName())}*${parts > 1 ? ` — ${idx}/${parts}` : ''}\n➡️ ${smallCaps('swipe')} ➡️` }),
+            footer: IM.Footer.create({ text: footerText() }),
+            carouselMessage: IM.CarouselMessage.fromObject({ cards: chunk, messageVersion: 1 })
+        }));
     }
-
-    // 3) Navigation card
-    if (totalPages > 1) {
-        const next = page % totalPages + 1;
-        const body = page < totalPages
-            ? `《 📝 MORE 》\n\nPage ${page}/${totalPages}\n➡️ Continue to the next page`
-            : `《 ✅ END 》\n\nPage ${page}/${totalPages}\nSab commands dikha di gayi hain.`;
-        const btns = [];
-        const nav = catFilter ? `${p}menu ${catFilter} ` : `${p}menu `;
-        if (page < totalPages) btns.push(quickReply('➡️ Next Page', nav + next));
-        btns.push(quickReply('🏠 First Page', nav + '1'));
-        if (catFilter) btns.push(quickReply('📂 All Categories', `${p}menu list`));
-        cards.push(makeCard(body, btns));
-    }
-
-    return IM.create({
-        body: IM.Body.create({ text: `*${botName()}* — Page ${page}/${totalPages}` }),
-        footer: IM.Footer.create({ text: footerText() }),
-        carouselMessage: IM.CarouselMessage.fromObject({ cards, messageVersion: 1 })
-    });
+    return out;
 }
 
 // Carousel bhejta hai. Success par true, fail par false (throw nahi karta).
@@ -314,33 +319,32 @@ async function sendCategoryView(conn, mek, from, cat) {
 async function sendCarouselMenu(conn, mek, m, ctx, pageArg, catFilter) {
     const from = (ctx && ctx.from) || m.chat;
     if (blockedInGroup(from)) return false;
-    // Category par tap/type: commands text me + 4 link buttons (carousel nahi)
+    // Category par tap/type: commands text me + 4 link buttons
     if (catFilter) {
         try { if (await sendCategoryView(conn, mek, from, catFilter)) return true; }
         catch (e) { console.error('category view error:', e && e.message); }
+        return false;
     }
-    const { cards, total } = buildCategoryCards(catFilter);
-    const totalPages = Math.max(1, Math.ceil(cards.length / CARDS_PER_PAGE));
-    let page = parseInt(pageArg, 10);
-    if (!Number.isFinite(page) || page < 1) page = 1;
-    if (page > totalPages) page = totalPages;
-    const pageCards = cards.slice((page - 1) * CARDS_PER_PAGE, page * CARDS_PER_PAGE);
     try {
         const baileys = require('@whiskeysockets/baileys');
-        const interactive = await buildCarousel(conn, page, pageCards, total, totalPages, baileys, catFilter);
-        const msg = baileys.generateWAMessageFromContent(from, {
-            viewOnceMessage: {
-                message: {
-                    messageContextInfo: { deviceListMetadata: {}, deviceListMetadataVersion: 2 },
-                    interactiveMessage: interactive
+        const list = await buildCarousels(conn, baileys);
+        for (const interactive of list) {
+            const msg = baileys.generateWAMessageFromContent(from, {
+                viewOnceMessage: {
+                    message: {
+                        messageContextInfo: { deviceListMetadata: {}, deviceListMetadataVersion: 2 },
+                        interactiveMessage: interactive
+                    }
                 }
-            }
-        }, { quoted: mek, userJid: conn.user && conn.user.id });
-        await relayInteractive(conn, from, msg);
+            }, { quoted: mek, userJid: conn.user && conn.user.id });
+            await relayInteractive(conn, from, msg);
+            if (list.length > 1) await new Promise(r => setTimeout(r, 700));
+        }
         return true;
     } catch (e) {
         console.error('carousel menu error:', e && e.message);
-        sendCarouselMenu.lastFallback = textMenu(page, pageCards, total, totalPages);
+        const { cards, total } = buildCategoryCards();
+        sendCarouselMenu.lastFallback = textMenu(1, cards.slice(0, CARDS_PER_PAGE), total, 1);
         return false;
     }
 }
@@ -477,4 +481,16 @@ cmd({
     if (!ok) await conn.sendMessage(from, { text: sendCarouselMenu.lastFallback }, { quoted: mek });
 });
 
-module.exports = { buildCategoryCards, sendCarouselMenu, sendCategoryPicker, groupCommands, sendOwnerCard, sendOwnerContact, ownerCardText, OWNER_LINKS };
+// Connect hone par: EK hi lambi VIP list mein saari commands
+function fullListText() {
+    const p = PREFIX();
+    const { grouped, cats, total } = groupCommands();
+    const head = `╔═══════◥◣◆◢◤═══════╗\n   ༺ 💎 ${boldText(botName())} 💎 ༻\n╚═══════◢◤◆◥◣═══════╝\n┃ 👑 ${smallCaps('owner')} ➜ ${config.OWNER_NAME || '-'}\n┃ ⚡ ${smallCaps('prefix')} ➜ ${p}   📦 ${total} ${smallCaps('commands')}\n┃ 🔰 ${smallCaps('type')} ${p}menu ${smallCaps('for swipe cards')}\n`;
+    const blocks = cats.map(cat => {
+        const list = grouped[cat].slice().sort((a, b) => a.localeCompare(b));
+        return `\n╭━━━❰ ${CATEGORY_ICONS[cat] || '📌'} ${boldText(cat.toUpperCase())} · ${list.length} ❱━━━╮\n` + list.map(x => `┃ ✦ ${p}${x}`).join('\n') + `\n╰━━━━━━━━━━━━━━━━━━╯`;
+    });
+    return head + blocks.join('\n') + `\n\n${config.BOT_FOOTER || ''}`;
+}
+
+module.exports = { fullListText, buildCategoryCards, buildCarousels, sendCarouselMenu, sendCategoryPicker, groupCommands, sendOwnerCard, sendOwnerContact, ownerCardText, OWNER_LINKS };
