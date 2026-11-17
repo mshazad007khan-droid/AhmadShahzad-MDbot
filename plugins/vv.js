@@ -102,7 +102,7 @@ async (conn, mek, m, { from, isCreator, reply, command }) => {
                 media = src
             } catch (_) { buffer = null }
         }
-        if (!buffer || !buffer.length) throw new Error("MEDIA_EMPTY (view-once bot ke online hone se pehle ka hai ya WhatsApp se expire ho chuka hai)")
+        if (!buffer || !buffer.length) throw new Error("MEDIA_EMPTY — ye view-once bot ke online hone se PEHLE aaya tha ya WhatsApp se expire ho gaya. Bot online ho, uske BAAD aane wali view-once par .vv chalega.")
 
         const caption = ((media.caption || "") + `\n\n👁️ From: ${prettyFrom(m, mek, from)}`).trim()
         let content
@@ -117,4 +117,20 @@ async (conn, mek, m, { from, isCreator, reply, command }) => {
         // error bhi sirf owner ke DM mein, chat mein kuch nahi
         try { await conn.sendMessage(me, { text: "*❌ VIEW ONCE OPEN KARNE ME ERROR AYA 🥺*\n_" + (e.message || e) + "_" }) } catch (_) {}
     }
+})
+
+// .antivv on/off — view-once khud-ba-khud owner ke DM mein save (default OFF)
+cmd({
+    pattern: "antivv",
+    alias: ["autovv", "antiviewonce"],
+    desc: "Har view-once ko khud owner ke DM mein bhejo (on/off)",
+    category: "owner",
+    filename: __filename
+}, async (conn, mek, m, { isCreator, reply, args }) => {
+    if (!isCreator) return reply("*YEH COMMAND SIRF BOT OWNER KE LIYE HAI 😎*")
+    const settings = require('../lib/botsettings')
+    const a = String((args && args[0]) || '').toLowerCase()
+    if (['on', 'enable'].includes(a)) { settings.set(conn, 'antivv', true); return reply("👁️ *ANTI VIEW-ONCE ON*\nAb har view-once aate hi aapke DM mein save ho jayegi.\nBand: `.antivv off`") }
+    if (['off', 'disable'].includes(a)) { settings.set(conn, 'antivv', false); return reply("👁️ *ANTI VIEW-ONCE OFF*") }
+    return reply(`👁️ Abhi: *${settings.get(conn, 'antivv', false) ? 'ON' : 'OFF'}*\n\`.antivv on\` / \`.antivv off\`\nYa kisi view-once par reply karke \`.vv\``)
 })

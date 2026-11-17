@@ -19,8 +19,9 @@ const CATEGORY_ICONS = {
     image: '🖼️', system: '💻', search: '🔎', misc: '📦', personal: '👤',
     textfx: '🔤', calc: '🧮', funzone: '🎉', extra: '✨', video: '🎬', prank: '😈', voice: '🎙️', name: '✍️', videoedit: '🎞️', photoedit: '🖼️', audioedit: '🎧'
 };
-const CATEGORY_ORDER = ['main', 'general', 'settings', 'owner', 'group', 'download', 'music', 'anime',
-    'video', 'videoedit', 'photoedit', 'audioedit', 'sticker', 'fun', 'prank', 'voice', 'name', 'games', 'love', 'emotions', 'islamic', 'tools', 'utility', 'image', 'system', 'search', 'misc', 'textfx', 'calc', 'funzone'];
+const CATEGORY_ORDER = ['owner', 'voice', 'video', 'prank', 'group', 'download', 'music', 'tools', 'sticker', 'videoedit', 'photoedit', 'audioedit',
+    'fun', 'islamic', 'anime', 'name', 'games', 'love', 'emotions', 'main', 'general', 'settings', 'utility', 'image', 'system', 'search', 'misc', 'textfx', 'calc', 'funzone'];
+const TOP_COMMANDS = ['song', 'video', 'play', 'tiktok', 'fb', 'ig', 'ytmp3', 'ai', 'sticker', 'vv', 'tts', 'bgmusicvoice', 'prank', 'ping', 'alive', 'owner', 'menu'];
 // -------------------------------------------------
 
 const PREFIX = () => config.PREFIX || '.';
@@ -180,6 +181,29 @@ async function sendOwnerContact(conn, jid, quoted) {
     }
 }
 
+
+const channelUrl = () => config.CHANNEL_LINK || 'https://whatsapp.com/channel/0029VbCx2Sb5q08a3fe3KZ42';
+const channelButton = () => urlButton('📢 VIEW CHANNEL', channelUrl());
+const hasCmd = (n) => commands.some(c => c.pattern === n || (Array.isArray(c.alias) && c.alias.includes(n)));
+
+// Ek card: image header + text + 4 link buttons (PORTFOLIO / TELEGRAM / VIEW CHANNEL / CHAT OWNER)
+async function sendLinkCard(conn, mek, from, body) {
+    try {
+        const baileys = require('@whiskeysockets/baileys');
+        const { proto, prepareWAMessageMedia, generateWAMessageFromContent } = baileys;
+        const IM = proto.Message.InteractiveMessage;
+        let header = IM.Header.fromObject({ title: '', subtitle: '', hasMediaAttachment: false });
+        try { header = IM.Header.fromObject({ title: '', subtitle: '', hasMediaAttachment: true, imageMessage: await getHeaderMedia(conn, prepareWAMessageMedia) }); } catch (_) {}
+        const interactive = IM.create({
+            header, body: IM.Body.create({ text: body }), footer: IM.Footer.create({ text: footerText() }),
+            nativeFlowMessage: IM.NativeFlowMessage.fromObject({ buttons: CATEGORY_LINK_BUTTONS.map(b => urlButton(b.button, b.url)) })
+        });
+        const msg = generateWAMessageFromContent(from, { viewOnceMessage: { message: { messageContextInfo: { deviceListMetadata: {}, deviceListMetadataVersion: 2 }, interactiveMessage: interactive } } }, { quoted: mek, userJid: conn.user && conn.user.id });
+        await relayInteractive(conn, from, msg);
+        return true;
+    } catch (e) { console.error('link card error:', e && e.message); return false; }
+}
+
 function footerText() { return `Powered By ${botName()}`; }
 
 // Plain-text fallback (agar carousel na chale)
@@ -195,7 +219,7 @@ function textMenu(page, pageCards, total, totalPages) {
 const SC = { a: "ᴀ", b: "ʙ", c: "ᴄ", d: "ᴅ", e: "ᴇ", f: "ғ", g: "ɢ", h: "ʜ", i: "ɪ", j: "ᴊ", k: "ᴋ", l: "ʟ", m: "ᴍ", n: "ɴ", o: "ᴏ", p: "ᴘ", q: "ǫ", r: "ʀ", s: "s", t: "ᴛ", u: "ᴜ", v: "ᴠ", w: "ᴡ", x: "x", y: "ʏ", z: "ᴢ" };
 const smallCaps = (t) => String(t || '').split('').map(ch => SC[ch.toLowerCase()] || ch).join('');
 const boldText = (t) => String(t || '').replace(/[A-Za-z]/g, ch => { const c = ch.charCodeAt(0); return String.fromCodePoint(c <= 90 ? 0x1D400 + (c - 65) : 0x1D41A + (c - 97)); });
-const CARD_PREVIEW = 22;   // card par kitni commands ke naam dikhen (baaki "Open All" se)
+const CARD_PREVIEW = 40;   // card par kitni commands ke naam dikhen (baaki "Open All" se)
 
 // Ek hi carousel: info card + har category ka ek card. Next/Prev page koi nahi — bas side par swipe karo.
 // Cards CARDS_PER_MSG se zyada hon to baaki cards agle carousel mein khud-ba-khud chale jate hain (button dabana nahi padta).
@@ -231,17 +255,28 @@ async function buildCarousels(conn, baileys) {
     const infoBtns = [quickReply('👑 Owner', p + 'owner')];
     if (owner) infoBtns.push(urlButton('💬 Chat Owner', owner));
     infoBtns.push(quickReply('🏓 Ping', p + 'ping'));
+    infoBtns.push(channelButton());
     all.push(makeCard(info, infoBtns));
+
+    // 1b) TOP COMMANDS — sab se zyada kaam aane wali commands pehle page par
+    const top = [];   // order ab: owner > bgmusic > videos > prank > group > baaki
+    if (top.length) {
+        const topBody = `╭═══❰ ⭐ ${boldText('TOP COMMANDS')} ⭐ ❱═══╮\n` +
+            top.map(x => `│ ➤ ${p}${smallCaps(x)}`).join('\n') +
+            `\n╰═══⟡ ${smallCaps('most used')} ⟡═══╯`;
+        const topBtns = top.slice(0, 2).map(x => quickReply(`▶️ ${p}${x}`, p + x));
+        topBtns.push(channelButton());
+        all.push(makeCard(topBody, topBtns));
+    }
 
     // 2) Har category ek card: commands ki list + "Open All"
     for (const cat of cats) {
         const list = grouped[cat].slice().sort((a, b) => a.localeCompare(b));
         const shown = list.slice(0, CARD_PREVIEW);
-        const rows = shown.map(x => `│ ✦ ${smallCaps(x)}`);
+        const rows = shown.map(x => `│ ➤ ${p}${smallCaps(x)}`);
         if (list.length > CARD_PREVIEW) rows.push(`│ ✨ +${list.length - CARD_PREVIEW} ${smallCaps('more — open all')}`);
         const body = `╭═══❰ ${CATEGORY_ICONS[cat] || '📌'} ${boldText(cat.toUpperCase())} ❱═══╮\n${rows.join('\n')}\n╰═══⟡ ${list.length} ${smallCaps('commands')} ⟡═══╯`;
-        const btns = [quickReply(`📂 Open All ${cat.toUpperCase()}`, `${p}menu ${cat}`)];
-        shown.slice(0, 2).forEach(x => btns.push(quickReply(p + x, p + x)));
+        const btns = [quickReply(`📂 Open All ${cat.toUpperCase()}`, `${p}menu ${cat}`), channelButton()];
         all.push(makeCard(body, btns));
     }
 
@@ -277,42 +312,37 @@ async function sendCategoryView(conn, mek, from, cat) {
     if (!grouped[cat]) return false;
     const list = grouped[cat].slice().sort((a, b) => a.localeCompare(b));
     const icon = CATEGORY_ICONS[cat] || '📌';
-    const line = '--------------------------------';
-    const head = `《 ${icon} ${cat.toUpperCase()} 》\n${line}\n`;
-    const foot = `${line}\n📦 ${list.length} commands`;
 
-    // lambi category (jaise tools) ho to text kai hisson me; aakhri hissa image + 4 buttons ke saath
-    const MAX = 3000;
+    // lambi category kai pages mein; HAR page ke neeche 4 buttons (VIEW CHANNEL zaroor)
+    const MAX = 2600;
+    const mk = (i, n) => `╭━━━〔 ${icon} ${boldText(cat.toUpperCase())}${n > 1 ? ` · ${i + 1}/${n}` : ''} 〕━━━╮\n┃\n`;
+    const foot = (n) => `┃\n╰━━⟡ 📦 ${list.length} ${smallCaps('commands')} ⟡━━╯`;
     const chunks = [];
     let cur = '';
     for (const c of list) {
-        const row = `➤ ${p}${c}\n`;
-        if ((head + cur + row + foot).length > MAX) { chunks.push(cur); cur = ''; }
+        const row = `┃ ➤ ${p}${smallCaps(c)}\n`;
+        if ((mk(0, 9) + cur + row + foot()).length > MAX) { chunks.push(cur); cur = ''; }
         cur += row;
     }
     chunks.push(cur);
-    for (let i = 0; i < chunks.length - 1; i++) {
-        await conn.sendMessage(from, { text: (i === 0 ? head : `《 ${icon} ${cat.toUpperCase()} · ${i + 1}/${chunks.length} 》\n${line}\n`) + chunks[i] }, { quoted: mek });
+
+    let media = null;
+    try { media = await getHeaderMedia(conn, prepareWAMessageMedia); } catch (_) { /* image ke bina bhi chalega */ }
+    for (let i = 0; i < chunks.length; i++) {
+        const header = IM.Header.fromObject({ title: '', subtitle: '', hasMediaAttachment: !!(media && i === 0), ...(media && i === 0 ? { imageMessage: media } : {}) });
+        const body = mk(i, chunks.length) + chunks[i] + foot() + (i < chunks.length - 1 ? `\n➡️ ${smallCaps('next page below')}` : '');
+        const interactive = IM.create({
+            header,
+            body: IM.Body.create({ text: body }),
+            footer: IM.Footer.create({ text: footerText() }),
+            nativeFlowMessage: IM.NativeFlowMessage.fromObject({ buttons: CATEGORY_LINK_BUTTONS.map(b => urlButton(b.button, b.url)) })
+        });
+        const msg = generateWAMessageFromContent(from, {
+            viewOnceMessage: { message: { messageContextInfo: { deviceListMetadata: {}, deviceListMetadataVersion: 2 }, interactiveMessage: interactive } }
+        }, { quoted: mek, userJid: conn.user && conn.user.id });
+        await relayInteractive(conn, from, msg);
+        if (i < chunks.length - 1) await new Promise(r => setTimeout(r, 600));
     }
-    const last = chunks.length - 1;
-    const body = (last === 0 ? head : `《 ${icon} ${cat.toUpperCase()} · ${last + 1}/${chunks.length} 》\n${line}\n`) + chunks[last] + foot;
-
-    let header = IM.Header.fromObject({ title: '', subtitle: '', hasMediaAttachment: false });
-    try {
-        const imageMessage = await getHeaderMedia(conn, prepareWAMessageMedia);
-        header = IM.Header.fromObject({ title: '', subtitle: '', hasMediaAttachment: true, imageMessage });
-    } catch (_) { /* image ke bina bhi chalega */ }
-
-    const interactive = IM.create({
-        header,
-        body: IM.Body.create({ text: body }),
-        footer: IM.Footer.create({ text: footerText() }),
-        nativeFlowMessage: IM.NativeFlowMessage.fromObject({ buttons: CATEGORY_LINK_BUTTONS.map(b => urlButton(b.button, b.url)) })
-    });
-    const msg = generateWAMessageFromContent(from, {
-        viewOnceMessage: { message: { messageContextInfo: { deviceListMetadata: {}, deviceListMetadataVersion: 2 }, interactiveMessage: interactive } }
-    }, { quoted: mek, userJid: conn.user && conn.user.id });
-    await relayInteractive(conn, from, msg);
     return true;
 }
 
@@ -493,4 +523,4 @@ function fullListText() {
     return head + blocks.join('\n') + `\n\n${config.BOT_FOOTER || ''}`;
 }
 
-module.exports = { fullListText, buildCategoryCards, buildCarousels, sendCarouselMenu, sendCategoryPicker, groupCommands, sendOwnerCard, sendOwnerContact, ownerCardText, OWNER_LINKS };
+module.exports = { sendLinkCard, fullListText, buildCategoryCards, buildCarousels, sendCarouselMenu, sendCategoryPicker, groupCommands, sendOwnerCard, sendOwnerContact, ownerCardText, OWNER_LINKS };

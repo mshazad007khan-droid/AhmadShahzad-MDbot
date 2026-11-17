@@ -463,33 +463,6 @@ cmd({
     }, { quoted: mek });
 });
 
-// 23. HACK — Fake hack prank
-cmd({
-    pattern: 'hack',
-    alias: ['hacker'],
-    desc: 'Fake hack (prank)',
-    category: 'fun',
-    react: '💻',
-    use: '.hack @user',
-    filename: __filename
-}, async (conn, mek, m, ctx) => {
-    const mentioned = mek.message?.extendedTextMessage?.contextInfo?.mentionedJid || [];
-    const target = mentioned[0] || ctx.sender;
-    const targetNum = target.split('@')[0];
-
-    await ctx.reply(`💻 *Hacking @${targetNum}…*`);
-    await new Promise(r => setTimeout(r, 1500));
-    await ctx.reply(`🔍 *Finding IP address…*`);
-    await new Promise(r => setTimeout(r, 1500));
-    await ctx.reply(`📡 *IP Found: 192.168.${crypto.randomInt(1, 255)}.${crypto.randomInt(1, 255)}*`);
-    await new Promise(r => setTimeout(r, 1500));
-    await ctx.reply(`🔐 *Cracking password…*`);
-    await new Promise(r => setTimeout(r, 1500));
-    await ctx.reply(`✅ *Password: 12345678*`);
-    await new Promise(r => setTimeout(r, 1000));
-    await ctx.reply(`⚠️ *JK! Ye sirf prank tha* 😂`);
-});
-
 // 24. SLAP — Slap someone
 cmd({
     pattern: 'slap',
