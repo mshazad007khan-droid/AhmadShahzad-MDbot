@@ -52,3 +52,58 @@
 - Asli video download (yt-dlp/cookies) YouTube ke IP-block/network par depend karta hai — code taraf se
   jo ho sakta tha (reliable install + cookies + fallback) wo sab kar diya hai, lekin "hamesha 100% chalega"
   ye guarantee koi bhi nahi de sakta, kyunke ye YouTube ke server ke rawaiye par hai.
+
+# v2.9.5
+1. `.jid` — kisi bhi chat/group ka JID, ya `.jid <channel/group link>` se us channel/group ka JID.
+   Code-block mein deta hai (tap/long-press se copy) + ek "📋 Copy JID" button bhi try karta hai.
+2. CHANNEL REACT/VOTE: `.chreact <post link> <emoji>` aur `.chpoll <post link> <option>` — dono sirf
+   LINK maangte hain, manual server-id nahi. `.chstatreact` (channel-status.js wala purana, alag) ab
+   usi tareeqe par fix kar diya — pehle manual jid+serverId maangta tha, ab sirf link.
+   React ke liye ab Baileys (direct) fail ho to backup API bhi try hoti hai: ammar-chreact-api.vercel.app
+   — iska exact response-format yahan test nahi ho saka (internet nahi tha), isliye 100% guarantee
+   nahi, lekin Baileys-direct wala already reliable tareeqa hai aur pehle try hota hai.
+3. `.channelstatus` — bug fix: pehle sirf "direct message ke sath" image check hoti thi, ab photo/video
+   par REPLY karke bhi chalta hai (jaisa chahiye tha). Video support bhi add kiya.
+4. NAYA `.gcstatus` — is GROUP ke members ko dikhne wala WhatsApp status (text/photo/video), sirf
+   group admin chala sakte hain.
+5. VOICE CHANGER behtar: ab `rubberband` filter (asal pitch-shift, formant-aware) use hota hai jo
+   simple resample (chipmunk effect) se kahin zyada natural lagta hai — fallback purana tareeqa bhi
+   maujood hai agar rubberband na ho. **Imaandari se:** "100% asli ladki ki awaaz" jaisi perfect
+   conversion sirf AI/neural voice-conversion (RVC jaisa) se milti hai, jo is bot mein (bina GPU/paid
+   service ke) nahi ho sakti — ye jo hai usse kaafi behtar hai, lekin perfect nahi hoga.
+6. BGMUSIC volume 0.10 se 0.25 kar diya (thora buland).
+7. AI MENU: `.aimenu` se poori list. `.aicode <kaam>` (AI se code), `.aiimg` (pehle se tha), `.aivideo`
+   — is mein imaandar jawab diya hai ke abhi koi reliable FREE video-AI nahi hai, fake wada nahi diya.
+8. NAYE 15 VIDEO TEMPLATES (`.vtemplate <naam>` ya seedha `.vtviral`, `.vtsad`, ...): viral, funny, sad,
+   poetry, romantic, motivational, cinematic, energetic, vintage, aesthetic, love, night, sports,
+   travel, dua. Har ek color-grade + caption + (zyadatar mein) background music + kabhi speed/vignette
+   laga deta hai — kisi bhi video par reply karke. **Sab 15 is session mein khud test kiye, sab chal
+   rahe hain** (local ffmpeg, koi API nahi chahiye).
+9. Welcome/Goodbye card ab GOLD/VIP look (gold ring, crown, "VIP MEMBER" ribbon neeche) aur caption
+   text bhi "👑 VIP MEMBER" style mein. Ye code warhi tarike se likha hai jaise purana (kaam karne
+   wala) card banta tha, lekin pura render karke yahan dekh nahi saka (is sandbox mein `sharp` package
+   install nahi hai, internet na hone ki wajah se install bhi nahi kar saka) — syntax/logic check kiya
+   hai, real WhatsApp par test karna padega.
+
+# v2.9.6 — "dusre zip" (Ahmadshahzadmdbot-main) se APIs port ki
+User ne di hui dusri (badi) bot repo mein video/audio download ke liye kuch REAL, isi waqt kaam karne
+wali third-party API endpoints the hain — wo yahan port kar diye:
+- backend1.tioo.eu.org/YouTube  (video+audio, MAIN API us dusre bot ki)
+- eliteprotech-apis.zone.id/ytdown
+- api.yupra.my.id/api/downloader/ytmp4 + ytmp3
+- okatsu-rolezapiiz.vercel.app/downloader
+- izumiiiii.vercel.app/download/ytmp3
+Ye sab `.video`, `.movie`, `.cartoon` wagera (video) aur `.song`/audio dono ke fallback chain mein
+backend1 ko sab se pehle rakh kar add kar diye (Piped/khud-generate kiye hue naam ab inke baad hain).
+`.fb` aur `.igdl` mein bhi backend1.tioo.eu.org ek extra fallback ke taur par add kiya.
+
+**View-once**: dusre zip ka `.vv` dekha — wo bina kisi cache ke seedha reply kiye gaye message se
+download karta hai. Humare bot mein ye tareeqa (direct download) PEHLE SE maujood hai, aur uske sath
+sath ek CACHE bhi hai (jo view-once ko usi waqt save kar leta hai jab wo aaye — taake agar koi usay
+ek baar khol le to bhi bot ke paas copy rahe). Humara tareeqa dusre zip se zyada mazboot hai, is liye
+usay "copy" nahi kiya — bas pichhle session ka asli bug (fromMe wali media cache na hona) fix kiya
+hua hai jo already is zip mein shamil hai.
+
+**Imaandari se:** ye saari third-party APIs FREE public services hain jinka internet na hone ki wajah
+se yahan live test nahi ho saka. Code ki taraf se jo mumkin tha — asli, kaam karti repo se li hui
+APIs, sahi order mein, sab ek dusre ke fallback — wo sab kar diya hai.
