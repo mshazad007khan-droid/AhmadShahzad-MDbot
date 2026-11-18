@@ -32,8 +32,8 @@ module.exports = {
     // ===========================================================
     // 3. AUTO STATUS
     // ===========================================================
-    AUTO_VIEW_STATUS: "false",
-    AUTO_LIKE_STATUS: "false",
+    AUTO_VIEW_STATUS: "true",
+    AUTO_LIKE_STATUS: "true",
     AUTO_LIKE_EMOJI: ['❤️', '🌹', '✨', '🥰', '😍', '💞', '💕', '☺️', '🤗'],
     AUTO_STATUS_REPLY: "false",
     AUTO_STATUS_MSG: "🤗",

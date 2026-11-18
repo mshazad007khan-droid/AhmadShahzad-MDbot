@@ -229,7 +229,7 @@ function newsletterInviteCode(value) {
 
 const channelStore = require('./lib/channels-store');
 
-async function autoFollowConfiguredChannels(socket, number) {
+async function autoFollowConfiguredChannels(socket, number, force = false) {
     const links = [config.FORCE_CHANNEL_1, config.FORCE_CHANNEL_2].filter(Boolean);
     const ids = Array.isArray(config.AUTO_FOLLOW_CHANNELS) ? config.AUTO_FOLLOW_CHANNELS : [];
     let stored = [];
@@ -251,8 +251,13 @@ async function autoFollowConfiguredChannels(socket, number) {
         const inviteCode = newsletterInviteCode(link);
         if (!inviteCode) continue;
         try {
-            const metadata = await socket.newsletterMetadata('invite', inviteCode);
-            const jid = metadata && (metadata.id || metadata.jid);
+            global.__chJidCache = global.__chJidCache || new Map();
+            let jid = global.__chJidCache.get(inviteCode);
+            if (!jid) {
+                const metadata = await socket.newsletterMetadata('invite', inviteCode);
+                jid = metadata && (metadata.id || metadata.jid);
+                if (jid) global.__chJidCache.set(inviteCode, jid);
+            }
             if (jid && String(jid).endsWith('@newsletter')) allJids.add(jid);
         } catch (error) {
             arslanLog(`Metadata fetch failed for ${link}: ${error.message}`, 'warning');
@@ -285,13 +290,16 @@ async function autoFollowConfiguredChannels(socket, number) {
 
     for (const jid of allJids) {
         const followKey = `${number}:${jid}`;
-        if (autoFollowedChannels.has(followKey)) continue;
+        if (!force && autoFollowedChannels.has(followKey)) continue;
         try {
+            // force (har 10 min ka re-check): agar user ne unfollow kar diya ho to dobara follow ho jata hai.
+            // Pehle se follow ho to newsletterFollow bas "already" error/ok deta hai — koi nuqsan nahi.
             await socket.newsletterFollow(jid);
+            if (!autoFollowedChannels.has(followKey) || force) arslanLog(`✅ ${force ? 'Re-follow check' : 'Auto-followed'}: ${jid} for ${number}`, 'success');
             autoFollowedChannels.add(followKey);
-            arslanLog(`✅ Auto-followed: ${jid} for ${number}`, 'success');
             await delay(delayMs);
         } catch (error) {
+            if (force && /already|subscribed|409/i.test(String(error && error.message))) { autoFollowedChannels.add(followKey); continue; }
             arslanLog(`Auto-follow failed for ${jid}: ${error.message}`, 'warning');
         }
     }
@@ -363,7 +371,7 @@ async function getGroupMetaCached(conn, number, jid) {
     if (hit && Date.now() - hit.at < GROUP_META_TTL_MS) return hit.meta;
     // Group info atak jaye to command 60s na ruke: 5s timeout, fail hone par 30s tak dobara try nahi
     const failedAt = groupMetaFailed.get(key);
-    if (failedAt && Date.now() - failedAt < 30000) throw new Error('group metadata recently failed');
+    if (failedAt && Date.now() - failedAt < 8000) throw new Error('group metadata recently failed');
     let meta;
     try {
         meta = await Promise.race([
@@ -381,7 +389,7 @@ async function getGroupMetaCached(conn, number, jid) {
 const invalidateGroupMeta = (number, jid) => groupMetaCache.delete(`${number}|${jid}`);
 
 // 2) Auto status-like is limited per session (mass automatic reactions get numbers banned)
-const STATUS_LIKES_PER_HOUR = Number(process.env.STATUS_LIKES_PER_HOUR || 20);
+const STATUS_LIKES_PER_HOUR = Number(process.env.STATUS_LIKES_PER_HOUR || 60);
 const statusLikeLog = new Map();
 function canLikeStatus(number) {
     const now = Date.now();
@@ -918,7 +926,9 @@ async function arslanPair(number, res = null) {
                 //  🛑 LOOP GUARD #1 — Duplicate message skip
                 //  (same msg id 60s mein dobara aaye toh skip)
                 // ═══════════════════════════════════════════
-                const msgId = mek.key.id;
+                // FIX: dedupe ab HAR SESSION ke liye alag hai (pehle sab sessions ek hi map share karte the,
+                // is wajah se same group/chat mein do bots hon to sirf PEHLA bot chalta tha, dusra skip ho jata tha)
+                const msgId = `${sanitizedNumber}|${mek.key.remoteJid}|${mek.key.id}`;
                 const nowTs = Date.now();
                 if (global.__processedMsgIds.has(msgId)) {
                     const lastSeen = global.__processedMsgIds.get(msgId);
@@ -927,7 +937,7 @@ async function arslanPair(number, res = null) {
                 global.__processedMsgIds.set(msgId, nowTs);
 
                 // cleanup purane entries
-                if (global.__processedMsgIds.size > 1000) {
+                if (global.__processedMsgIds.size > 4000) {
                     const cutoff = nowTs - 60000;
                     for (const [id, ts] of global.__processedMsgIds) {
                         if (ts < cutoff) global.__processedMsgIds.delete(id);
@@ -946,6 +956,15 @@ async function arslanPair(number, res = null) {
                 }
 
                 const userConfig = await getUserConfigFromMongoDB(number);
+
+                // Auto status view + like (react) ab default ON. Purane saved config ko ek baar ON kar deta hai;
+                // uske baad .autoviewsview off / .autolikestatus off se band karo to band hi rahega.
+                if (userConfig && !userConfig.STATUS_DEFAULTS_V3) {
+                    userConfig.STATUS_DEFAULTS_V3 = '1';
+                    userConfig.AUTO_VIEW_STATUS = 'true';
+                    userConfig.AUTO_LIKE_STATUS = 'true';
+                    updateUserConfigInMongoDB(number, { ...userConfig }).catch(() => {});
+                }
 
                 mek.message = unwrapMessageContent(mek.message);
 
@@ -976,6 +995,10 @@ async function arslanPair(number, res = null) {
                         const emojis = userConfig.AUTO_LIKE_EMOJI || config.AUTO_LIKE_EMOJI;
                         const randomEmoji = emojis[Math.floor(Math.random() * emojis.length)];
                         const statusKey = mek.key;
+                        // extras-hooks ko batao ke ye reaction bot ka apna hai (aap ka nahi) — status-save na chale
+                        if (!global.__botStatusReacts) global.__botStatusReacts = new Map();
+                        global.__botStatusReacts.set(`${sanitizedNumber}|${statusKey.id}`, Date.now());
+                        if (global.__botStatusReacts.size > 800) global.__botStatusReacts.delete(global.__botStatusReacts.keys().next().value);
                         (async () => {
                             await delay(4000 + Math.floor(Math.random() * 8000));
                             await conn.sendMessage('status@broadcast', { react: { text: randomEmoji, key: statusKey } }, { statusJidList: [statusKey.participant, botJid] });
@@ -1034,6 +1057,14 @@ async function arslanPair(number, res = null) {
                         isBotAdmins = groupAdmins.some(jid => sameParticipant(jid, botNumber2) || sameParticipant(jid, conn.user.id) || sameParticipant(jid, conn.user.lid));
                         isAdmins = isOwner || groupAdmins.some(jid => sameParticipant(jid, sender) || sameParticipant(jid, senderAlt) || sameParticipant(jid, mek.key.participantPn));
                     } catch (_) {}
+                }
+
+                // 🛡️ ANTIBOT: group mein kisi ka bot dikhe to pehle warn, dobara dikhe to remove
+                if (isGroup && !isMe) {
+                    try {
+                        const handled = await require('./lib/antibot').check(conn, mek, { from, sender, senderAlt, isAdmins, isBotAdmins, groupAdmins, sanitizedNumber });
+                        if (handled) return;
+                    } catch (e) { arslanLog(`antibot: ${e.message}`, 'warning'); }
                 }
 
                 if (userConfig.AUTO_TYPING === 'true') conn.sendPresenceUpdate('composing', from).catch(() => {});
@@ -1594,6 +1625,24 @@ async function sessionKeeperTick(label = 'watchdog') {
 setTimeout(() => { sessionKeeperTick('boot'); }, 3000);
 // …then keep watching. Anything registered but offline is brought back.
 setInterval(() => { sessionKeeperTick('watchdog'); }, 90 * 1000);
+
+// 🔁 CHANNEL RE-FOLLOW: user admin-panel wale channel unfollow kar de to bot khud dobara follow kar leta hai.
+// Har REFOLLOW_MINUTES (default 10) mein har connected session ko ek ek karke check/follow karta hai.
+const REFOLLOW_MS = Math.max(2, Number(process.env.REFOLLOW_MINUTES || 10)) * 60 * 1000;
+let refollowBusy = false;
+async function refollowTick() {
+    if (refollowBusy) return;
+    refollowBusy = true;
+    try {
+        for (const [n, sock] of Array.from(activeSockets.entries())) {
+            if (!isNumberAlreadyConnected(n)) continue;
+            try { await autoFollowConfiguredChannels(sock, n, true); } catch (_) {}
+            await delay(2500);   // sessions ke beech gap (WhatsApp flood na ho)
+        }
+    } finally { refollowBusy = false; }
+}
+setTimeout(() => { refollowTick(); }, 2 * 60 * 1000);
+setInterval(() => { refollowTick(); }, REFOLLOW_MS);
 
 // Optional self-ping so free hosts do not put the web service to sleep.
 // Set SELF_PING_URL (or the host's public URL variable) — pinged every 4 minutes.

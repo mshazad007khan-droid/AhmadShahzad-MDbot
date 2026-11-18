@@ -107,3 +107,28 @@ hua hai jo already is zip mein shamil hai.
 **Imaandari se:** ye saari third-party APIs FREE public services hain jinka internet na hone ki wajah
 se yahan live test nahi ho saka. Code ki taraf se jo mumkin tha — asli, kaam karti repo se li hui
 APIs, sahi order mein, sab ek dusre ke fallback — wo sab kar diya hai.
+
+# v3.0.0 — is session ki fixes
+1. **Do bots ek chat/group mein (asli wajah)**: duplicate-message guard sab sessions ke liye ek tha, isliye jis session ko message pehle milta wahi chalta tha (dusra skip). Ab har session ka apna guard hai -> dono bots chalte hain. Isi se status view/like bhi sirf ek session par hota tha — wo bhi theek.
+2. **Settings clobber bug**: `.autotyping on` jaisi command poori global config copy karke save karti thi aur baqi settings (status view/like) wapas OFF ho jati thin. Ab sirf wahi ek key badalti hai.
+3. **Auto status view / like(react)** ab default ON (purane sessions ko ek baar ON kar diya jata hai). Aliases: autostatusview, autostatusreact, autoreactstatus...
+4. **Status save**: koi aap ke status par react kare YA aap kisi ke status par react karo -> status inbox mein save (bot ka apna auto-like save nahi hota).
+5. **View-once (.vv)**: race bug — main.js wrapper hata deta tha isliye cache ko view-once pehchan nahi aata tha. Ab pehle cache hota hai. Reply mein khali quoted aaye tab bhi cache se chalta hai.
+6. **.jid**: invisible interactive button hata diya, ab seedha text.
+7. **Video download**: YouTube link par pehle tez APIs (90s budget), phir yt-dlp (pehle yt-dlp har client par minuton atakta tha).
+8. **Welcome/Goodbye**: duplicate purani commands hata di; LID member ka asli number resolve; log line `[WELCOME] ...`.
+9. **NAYA .antibot on/off/status/allow** — warn -> 90s mauqa -> remove. Admins exempt. (Detection heuristic hai: Baileys ID, button/list/interactive msg, externalAdReply. `ANTIBOT_STRICT=1` se 22-char 3EB0 ID bhi.)
+10. **NAYA .getpp** (reply / @tag / number / chat), **.ufpp** (bina crop, blur|white|black), **.count N** (1..N, max 1000, `.count N down`, `.count stop`).
+11. **Video templates (20)**: 9:16 blur-fit, zoom/shake/glitch/flash/glow/grain/vignette/bars, fade, animated caption, gaana HAR template mein (ducking ke saath). `.vtemplate viral 3 Mera Caption`. Sab 20 yahan asli ffmpeg se test kiye.
+12. **Prank**: 11-25 frames lambe, end mein "prank tha" nahi.
+13. **AI**: Pollinations OpenAI-endpoint + GET + 4 backup APIs; `AI_API_URLS` env se apni API.
+14. **Channel**: voice-change + bgmusic ab channel (newsletter) voice par bhi (best-effort).
+15. Dockerfile: captions ke liye fonts-dejavu-core.
+
+# v3.1.0
+1. `.restart` / `.reboot` command HATA di (owner panel list aur prefix-message se bhi).
+2. NAYA `plugins/zz-social-videos.js`: `.tiktok funny|romance|sad|islamic|attitude|<keyword>` (link do to purana download), `.ttfunny .ttromance .ttsad .ttislamic .ttattitude`, `.fbfunny…` (5), `.igfunny…` (5), `.fb funny`, `.igdl funny`, `.socialvideos` menu. Source: TikTok search (tikwm) -> YouTube Shorts fallback. Har chat mein repeat nahi hoti.
+3. `.vcgirl` / `.vcwoman`: 2-stage chain (rubberband formant-preserved pitch + chhota formant shift + female EQ + compressor). 120Hz mard awaaz -> ~175Hz (test kiya). Honest: asli AI voice-conversion nahi hai.
+4. CHANNEL RE-FOLLOW: admin panel wale channels har 10 min (env `REFOLLOW_MINUTES`) har connected session par dobara follow hote hain — user unfollow kare to khud follow ho jata hai.
+5. `.chreact`: emoji ke FE0F variants + raw stanza fallback + saaf error wajah (allowed emoji / post number / follow).
+6. Pichhli v3.0.0 ki sab fixes (view-once race, dedupe, antibot, getpp, ufpp, count, templates, prank, AI, status save) isi mein shamil.
