@@ -544,25 +544,8 @@ cmd({
         let content = fs.readFileSync(configPath, 'utf8');
         content = content.replace(/PREFIX:\s*process\.env\.PREFIX\s*\|\|\s*["'][^"']*["']/, `PREFIX: process.env.PREFIX || "${newPrefix}"`);
         fs.writeFileSync(configPath, content);
-        return ctx.reply(`🔧 *Prefix changed to:* ${newPrefix}\n\n⚠️ Restart karo: \`.restart\``);
+        return ctx.reply(`🔧 *Prefix changed to:* ${newPrefix}\n\n⚠️ Bot ko redeploy karo (hosting panel se).`);
     } catch (e) {
         return ctx.reply('❌ ' + e.message);
     }
-});
-
-// ===========================================================
-// 20. RESTART — Bot restart
-// ===========================================================
-cmd({
-    pattern: 'restart',
-    alias: ['reboot'],
-    desc: 'Owner: Bot restart',
-    category: 'owner',
-    react: '🔄',
-    filename: __filename
-}, async (conn, mek, m, ctx) => {
-    if (!isOwner(ctx)) return ctx.reply('⛔ Owner only.');
-
-    await ctx.reply('🔄 *Restarting bot in 3 seconds…*');
-    setTimeout(() => process.exit(0), 3000);
 });

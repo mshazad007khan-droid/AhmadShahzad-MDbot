@@ -51,7 +51,11 @@ async (conn, mek, m, { from, isCreator, reply, command }) => {
             return
         }
 
-        if (!m.quoted || !m.quoted.message) {
+        // WhatsApp kabhi view-once par reply karte waqt quoted message ka content khali bhejta hai (sirf stanzaId aata hai)
+        // — aise mein bhi bot apne cache se media nikal leta hai, isliye sirf stanzaId hona kaafi hai.
+        const rawCtx = (mek.message && (mek.message.extendedTextMessage || {}).contextInfo) || {}
+        if (!m.quoted && rawCtx.stanzaId) m.quoted = { stanzaId: rawCtx.stanzaId, id: rawCtx.stanzaId, participant: rawCtx.participant, sender: rawCtx.participant, message: rawCtx.quotedMessage || {} }
+        if (!m.quoted || (!m.quoted.message && !m.quoted.stanzaId)) {
             if (quiet) return
             return reply(
                 "*🥺 KISI VIEW ONCE PHOTO / VIDEO / AUDIO KO REPLY KARO*\n\n" +
@@ -61,7 +65,7 @@ async (conn, mek, m, { from, isCreator, reply, command }) => {
         }
 
         const stanzaId = m.quoted.stanzaId || m.quoted.id
-        let { msg, viewOnce } = unwrap(m.quoted.message)
+        let { msg, viewOnce } = unwrap(m.quoted.message || {})
         let type = Object.keys(msg || {}).find(k => /^(image|video|audio)Message$/.test(k))
         let isVO = viewOnce || (type && msg[type] && msg[type].viewOnce === true)
 

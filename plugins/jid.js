@@ -67,9 +67,10 @@ cmd({
             label = isGroup ? 'This Group' : 'This Chat';
         }
 
+        // FIX: pehle "Copy JID" interactive button bheja jata tha — WhatsApp us message ko aksar dikhata hi nahi
+        // (send "success" ho jata hai par chat mein kuch nahi aata). Ab seedha text — hamesha dikhta hai.
         const body = `🆔 *${label} JID*\n\n\`\`\`${jid}\`\`\`\n\n_Tap/long-press karke copy karo._`;
-        const sent = await sendWithCopyButton(conn, mek, from, body, jid);
-        if (!sent) await reply(body);
+        await conn.sendMessage(from, { text: body }, { quoted: mek });
     } catch (e) {
         return reply('❌ JID nikalne mein error: ' + e.message);
     }

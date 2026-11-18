@@ -13,7 +13,7 @@ cmd({ pattern: 'ownerhelp', alias: ['ownercommands', 'ohhelp'], desc: 'Owner: li
   return ctx.reply([
     '👑 *𝐀𝐡𝐦𝐚𝐝𝐒𝐡𝐚𝐡𝐳𝐚𝐝-𝐌𝐃 — OWNER COMMANDS*', '',
     '*Dashboard & health*', '• .ownerhub — dashboard', '• .bothealth — runtime health', '• .pluginscan — plugin file scan', '• .usagestats — command/category stats', '',
-    '*Control*', '• .botpause / .botresume', '• .maintenance on/off', '• .botnotice <text|clear>', '• .setprefix !', '• .restart', '',
+    '*Control*', '• .botpause / .botresume', '• .maintenance on/off', '• .botnotice <text|clear>', '• .setprefix !', '',
     '*Messaging*', '• .sendto <number> <message>', '• .broadcast2 <message> (groups)', '• .forwardall (reply to a message)', '',
     '⚠️ Use broadcast tools only for appropriate chats and avoid unsolicited bulk messages.'
   ].join('\n'));

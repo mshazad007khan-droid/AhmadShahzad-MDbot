@@ -1,25 +1,23 @@
 const { cmd } = require('../arslan');
 const { getUserConfigFromMongoDB, updateUserConfigInMongoDB } = require('../lib/database');
 
-// Helper function to update config in memory and database
+// Helper: sirf is session ki apni saved config mein ek key badalta hai.
+// (Pehle poori global config copy hoke save hoti thi -> ek setting badalne se baqi settings default par
+//  wapas chali jati thin, jaise autotyping on karte hi auto-status-view band ho jata tha.)
 const updateConfig = async (key, value, botNumber, config, reply) => {
     try {
-        // 1. Update in-memory config (Immediate)
-        config[key] = value;
-        
-        // 2. Update in Database (Persistent)
-        const newConfig = { ...config }; 
-        newConfig[key] = value;
-        
-        const saved = await updateUserConfigInMongoDB(String(botNumber || ''), newConfig);
-        if (!saved) throw new Error('Database update returned false');
-        
-        return reply(`✅ *${key}* has been updated to: *${value}*`);
+        const current = (await getUserConfigFromMongoDB(String(botNumber || ''))) || {};
+        const newConfig = { ...current, [key]: value, STATUS_DEFAULTS_V3: '1' };
+        await updateUserConfigInMongoDB(String(botNumber || ''), newConfig);
+        // main.js in keys ko seedha global config se padhta hai
+        if (['WORK_TYPE', 'PREFIX', 'OWNER_NAME', 'OWNER_DISPLAY_NUMBER'].includes(key)) { try { require('../config')[key] = value; } catch (_) {} }
+        return reply(`✅ *${key}* ab: *${value}*`);
     } catch (e) {
         console.error(e);
-        return reply("❌ Database save nahi hua. MongoDB URI/connection check karo aur phir dobara try karo.");
+        return reply("❌ Setting save nahi hui: " + (e.message || e));
     }
 };
+const readCfg = async (botNumber) => (await getUserConfigFromMongoDB(String(botNumber || ''))) || {};
 
 // ============================================================
 // 1. PRESENCE MANAGEMENT (Recording / Typing)
@@ -32,7 +30,8 @@ cmd({
     category: "settings",
     react: "👑"
 },
-async(conn, mek, m, { args, isOwner, reply, botNumber, config }) => {
+async(conn, mek, m, { args, isOwner, reply, botNumber, config: _g }) => {
+    const config = await readCfg(botNumber);
     if (!isOwner) return reply("*YEH COMMAND SIRF MERE LIE HAI 😎*");
     const value = args[0]?.toLowerCase();
     
@@ -52,7 +51,8 @@ cmd({
     category: "settings",
     react: "👑"
 },
-async(conn, mek, m, { args, isOwner, reply, botNumber, config }) => {
+async(conn, mek, m, { args, isOwner, reply, botNumber, config: _g }) => {
+    const config = await readCfg(botNumber);
     if (!isOwner) return reply("*YEH COMMAND SIRF MERE LIE HAI 😎*");
     const value = args[0]?.toLowerCase();
     
@@ -93,43 +93,7 @@ async(conn, mek, m, { args, isOwner, reply, botNumber, config }) => {
 // 3. GROUP MANAGEMENT (Welcome / Goodbye)
 // ============================================================
 
-cmd({
-    pattern: "welcome",
-    desc: "Enable/Disable welcome messages",
-    category: "settings",
-    react: "👑"
-},
-async(conn, mek, m, { args, isOwner, reply, botNumber, config }) => {
-    if (!isOwner) return reply("*YEH COMMAND SIRF MERE LIE HAI 😎*");
-    const value = args[0]?.toLowerCase();
-    
-    if (value === 'on' || value === 'true') {
-        await updateConfig('WELCOME', 'true', botNumber, config, reply);
-    } else if (value === 'off' || value === 'false') {
-        await updateConfig('WELCOME', 'false', botNumber, config, reply);
-    } else {
-        reply(`*ABHI :❯ ${config.WELCOME} HAI 😊*\n\n*JO NEW MEMBER GROUP JOIN KARE GA USKA WELCOME MSG BHEJ DYA JAYE GA 😃 YEH SETTING ON KARNE K LIE LIKHO ☺️*\n*👑 ❮WECOME ON❯ 👑*\n*WELCOME OFF KARNE K LIE LIKHO ☺️*\n*👑 ❮WELCOME OFF❯ 👑*`);
-    }
-});
-
-cmd({
-    pattern: "goodbye",
-    desc: "Enable/Disable goodbye messages",
-    category: "settings",
-    react: "👑"
-},
-async(conn, mek, m, { args, isOwner, reply, botNumber, config }) => {
-    if (!isOwner) return reply("*YEH COMMAND SIRF MERE LIE HAI 😎*");
-    const value = args[0]?.toLowerCase();
-    
-    if (value === 'on' || value === 'true') {
-        await updateConfig('GOODBYE', 'true', botNumber, config, reply);
-    } else if (value === 'off' || value === 'false') {
-        await updateConfig('GOODBYE', 'false', botNumber, config, reply);
-    } else {
-        reply(`*ABHI :❯ ${config.GOODBYE} HAI 😊*\n\n*JO MEMBER GROUP LEFT KARE GA USKA GOODBYE MSG BHEJ DYA JAYE GA 😃 YEH SETTING ON KARNE K LIE LIKHO ☺️*\n*👑 ❮GOODBYE ON❯ 👑*\n*GOODBYE OFF KARNE K LIE LIKHO ☺️*\n*👑 ❮GOODBYE OFF❯ 👑*`);
-    }
-});
+// (welcome / goodbye ab plugins/welcome-pro.js mein hain — per group on/off)
 
 // ============================================================
 // 4. READ & STATUS MANAGEMENT
@@ -141,7 +105,8 @@ cmd({
     category: "settings",
     react: "👀"
 },
-async(conn, mek, m, { args, isOwner, reply, botNumber, config }) => {
+async(conn, mek, m, { args, isOwner, reply, botNumber, config: _g }) => {
+    const config = await readCfg(botNumber);
     if (!isOwner) return reply("*YEH COMMAND SIRF MERE LIE HAI 😎*");
     const value = args[0]?.toLowerCase();
     
@@ -156,12 +121,13 @@ async(conn, mek, m, { args, isOwner, reply, botNumber, config }) => {
 
 cmd({
     pattern: "autoviewsview",
-    alias: ["avs", "statusseen", "astatus"],
+    alias: ["avs", "statusseen", "astatus", "autostatusview", "autoviewstatus", "autoview", "autostatusseen"],
     desc: "Auto view status updates",
     category: "settings",
     react: "😎"
 },
-async(conn, mek, m, { args, isOwner, reply, botNumber, config }) => {
+async(conn, mek, m, { args, isOwner, reply, botNumber, config: _g }) => {
+    const config = await readCfg(botNumber);
     if (!isOwner) return reply("*YEH COMMAND SIRF MERE LIE HAI 😎*");
     const value = args[0]?.toLowerCase();
     
@@ -176,12 +142,13 @@ async(conn, mek, m, { args, isOwner, reply, botNumber, config }) => {
 
 cmd({
     pattern: "autolikestatus",
-    alias: ["als"],
+    alias: ["als", "autostatuslike", "autostatusreact", "autoreactstatus", "autolike", "autostatuslikes"],
     desc: "Auto like status updates",
     category: "settings",
     react: "❤️"
 },
-async(conn, mek, m, { args, isOwner, reply, botNumber, config }) => {
+async(conn, mek, m, { args, isOwner, reply, botNumber, config: _g }) => {
+    const config = await readCfg(botNumber);
     if (!isOwner) return reply("🚫 Owner only!");
     const value = args[0]?.toLowerCase();
     
@@ -204,7 +171,8 @@ cmd({
     category: "settings",
     react: "⚙️"
 },
-async(conn, mek, m, { args, isOwner, reply, botNumber, config }) => {
+async(conn, mek, m, { args, isOwner, reply, botNumber, config: _g }) => {
+    const config = await readCfg(botNumber);
     if (!isOwner) return reply("*YEH COMMAND SIRF MERE LIE HAI 😎*");
     const mode = args[0]?.toLowerCase();
     const validModes = ['public', 'private', 'groups', 'inbox'];
@@ -222,7 +190,8 @@ cmd({
     category: "settings",
     react: "👑"
 },
-async(conn, mek, m, { args, isOwner, reply, botNumber, config }) => {
+async(conn, mek, m, { args, isOwner, reply, botNumber, config: _g }) => {
+    const config = await readCfg(botNumber);
     if (!isOwner) return reply("*YEH COMMAND SIRF MERE LIE HAI 😎*");
     const newPrefix = args[0];
 
@@ -274,7 +243,7 @@ cmd({
     const number = raw.replace(/[^0-9]/g, '');
     if (number.length < 8 || number.length > 15) return reply("❌ Valid country-code ke saath number likho, jaise 923264931117.");
     try {
-        const nextConfig = { ...config, OWNER_DISPLAY_NUMBER: number };
+        const nextConfig = { ...(await readCfg(botNumber)), OWNER_DISPLAY_NUMBER: number };
         const saved = await updateUserConfigInMongoDB(String(botNumber || ''), nextConfig);
         if (!saved) throw new Error('Database update returned false');
         config.OWNER_DISPLAY_NUMBER = number;

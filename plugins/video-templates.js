@@ -20,6 +20,15 @@ async function getVideo(m, mek) {
     return tryMsg(mek.message);
 }
 
+// .vtemplate viral 3 My Caption  -> 3 = music number (1..), baqi = apna caption (sirf English/Roman likhai)
+function parseOpts(rest) {
+    const arr = rest || [];
+    const i = arr.findIndex(x => /^[1-9]\d?$/.test(x));
+    const track = i >= 0 ? Number(arr[i]) : null;
+    const caption = arr.filter((_, j) => j !== i).join(' ').trim();
+    return { track, caption: caption || null };
+}
+
 cmd({
     pattern: 'vtemplate',
     alias: ['videotemplate', 'template', 'vedit'],
@@ -40,7 +49,11 @@ cmd({
 ${list}
 ┃
 ╰━━━━━━━━━━━━━━━━━━━━━━╯
-📌 Video par reply karke: \`.vtemplate viral\``
+📌 Video par reply karke: \`.vtemplate viral\`
+🎵 Har template mein gaana (music) khud lagta hai
+🎶 Dusra gaana: \`.vtemplate viral 3\`  (1-5)
+✍️ Apna caption: \`.vtemplate viral 2 Ahmad Shahzad\`
+✨ Effects: zoom, glitch, shake, flash, glow, fade, 9:16 blur-fit`
         );
     }
 
@@ -49,9 +62,9 @@ ${list}
 
     await conn.sendMessage(from, { react: { text: '⏳', key: mek.key } });
     try {
-        const out = await vt.applyTemplate(video, name);
+        const out = await vt.applyTemplate(video, name, parseOpts(args.slice(1)));
         await conn.sendMessage(from, { react: { text: '✅', key: mek.key } });
-        await conn.sendMessage(from, { video: out, caption: `${vt.TEMPLATES[name].label} ✨\n𝐀𝐡𝐦𝐚𝐝𝐒𝐡𝐚𝐡𝐳𝐚𝐝-𝐌𝐃` }, { quoted: mek });
+        await conn.sendMessage(from, { video: out, mimetype: 'video/mp4', caption: `${vt.TEMPLATES[name].label} ✨\n𝐀𝐡𝐦𝐚𝐝𝐒𝐡𝐚𝐡𝐳𝐚𝐝-𝐌𝐃` }, { quoted: mek });
     } catch (e) {
         await conn.sendMessage(from, { react: { text: '❌', key: mek.key } });
         return reply('❌ Template lagane mein error: ' + e.message);
@@ -69,9 +82,9 @@ for (const name of vt.TEMPLATE_NAMES) {
         if (!video) return reply(`❌ Kisi video par reply karke bhejo.\nMisal: video par reply karke \`.vt${name}\``);
         await conn.sendMessage(from, { react: { text: '⏳', key: mek.key } });
         try {
-            const out = await vt.applyTemplate(video, name);
+            const out = await vt.applyTemplate(video, name, parseOpts(ctx.args));
             await conn.sendMessage(from, { react: { text: '✅', key: mek.key } });
-            await conn.sendMessage(from, { video: out, caption: `${vt.TEMPLATES[name].label} ✨` }, { quoted: mek });
+            await conn.sendMessage(from, { video: out, mimetype: 'video/mp4', caption: `${vt.TEMPLATES[name].label} ✨` }, { quoted: mek });
         } catch (e) {
             await conn.sendMessage(from, { react: { text: '❌', key: mek.key } });
             return reply('❌ ' + e.message);
