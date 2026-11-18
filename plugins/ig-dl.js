@@ -38,16 +38,33 @@ cmd({
         }
 
         // 2) fallback: public API
-        const apiUrl = `https://api-aswin-sparky.koyeb.app/api/downloader/igdl?url=${encodeURIComponent(url)}`;
-        const response = await axios.get(apiUrl);
+        let items = null;
+        try {
+            const apiUrl = `https://api-aswin-sparky.koyeb.app/api/downloader/igdl?url=${encodeURIComponent(url)}`;
+            const response = await axios.get(apiUrl, { timeout: 20000 });
+            if (response.data?.status && response.data.data?.length) items = response.data.data;
+        } catch (e1) { console.warn('[IGDL] api-aswin-sparky failed, trying backend1:', e1.message); }
 
-        if (!response.data?.status || !response.data.data?.length) {
+        // 3) fallback 2: backend1.tioo.eu.org (asli, dusre bot se li hui API)
+        if (!items) {
+            try {
+                const d = (await axios.get(`https://backend1.tioo.eu.org/igdl?url=${encodeURIComponent(url)}`, { timeout: 20000 })).data;
+                const raw = (d && (d.data || d.result || d.urls)) || null;
+                if (Array.isArray(raw) && raw.length) {
+                    items = raw.map(x => ({ type: (x.type || (String(x.url || x.download || '').includes('.mp4') ? 'video' : 'image')), url: x.url || x.download }));
+                } else if (d && (d.url || d.download)) {
+                    items = [{ type: 'video', url: d.url || d.download }];
+                }
+            } catch (e2) { console.warn('[IGDL] backend1 also failed:', e2.message); }
+        }
+
+        if (!items || !items.length) {
             await conn.sendMessage(from, { react: { text: '❌', key: m.key } });
             return reply("Failed to fetch media. Invalid link or private content." + (localWhy ? "\n\n💡 " + localWhy : ""));
         }
 
         // Send all media items
-        for (const item of response.data.data) {
+        for (const item of items) {
             await conn.sendMessage(from, {
                 [item.type === 'video' ? 'video' : 'image']: { url: item.url },
                 caption: `‎*_ɪɴsᴛᴀɢʀᴀᴍ ᴅᴏᴡɴʟᴏᴀᴅᴇʀ_*

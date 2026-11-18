@@ -79,3 +79,61 @@ cmd({
         return reply('❌ AI image nahi ban saki: ' + e.message + '\n(Ye free public API hai, kabhi slow/down bhi ho sakti hai.)');
     }
 });
+
+// ─────────────── .aicode : AI se code likhwao (wahi free model, coding-focused prompt) ───────────────
+cmd({
+    pattern: 'aicode', alias: ['codegpt', 'writecode'], desc: 'AI se code likhwao', category: 'ai',
+    react: '👨‍💻', use: '.aicode <kya banana hai>', filename: __filename
+}, async (conn, mek, m, { args, reply, from }) => {
+    const q = args.join(' ').trim();
+    if (!q) return reply('👨‍💻 *AI CODE*\n\nUsage: `.aicode python mein ek calculator banao`');
+    await conn.sendMessage(from, { react: { text: '⏳', key: mek.key } });
+    try {
+        const prompt = `You are an expert programmer. Write clean, correct, working code for this request, with short comments. Request: ${q}`;
+        const ans = await askAI(prompt, 'gpt');
+        await conn.sendMessage(from, { react: { text: '✅', key: mek.key } });
+        return reply('👨‍💻 *AI CODE*\n\n' + ans);
+    } catch (e) {
+        await conn.sendMessage(from, { react: { text: '❌', key: mek.key } });
+        return reply('❌ Code generate nahi ho saka: ' + e.message);
+    }
+});
+
+// ─────────────── .aivideo : seedha, imaandar jawab (abhi reliable free video-gen nahi hai) ───────────────
+cmd({
+    pattern: 'aivideo', alias: ['textvideo', 'videogen'], desc: 'AI video (abhi limited)', category: 'ai',
+    react: '🎬', use: '.aivideo <description>', filename: __filename
+}, async (conn, mek, m, { reply }) => {
+    return reply(
+        '🎬 *AI VIDEO*\n\n' +
+        'Sachi baat: koi bhi FREE aur reliable AI text-to-video service abhi maujood nahi hai jo bina\n' +
+        'paid API key ke chale. Jo "free video AI" bots dikhte hain wo aksar jald band ho jate hain ya\n' +
+        'kaam nahi karte — is liye yahan fake wada nahi dena chahta.\n\n' +
+        '✅ Iske bajaye abhi ye available hain:\n' +
+        '• `.aiimg <description>` — AI se photo (reliable, free)\n' +
+        '• `.vtemplate` — apni kisi video par ready-made viral/sad/funny edit laga do\n\n' +
+        'Agar future mein koi paid AI-video key (jaise Runway/Kling) add karni ho to bata dena, uska\n' +
+        'integration add kar dunga.'
+    );
+});
+
+// ─────────────── .aimenu : saari AI commands ek jagah ───────────────
+cmd({
+    pattern: 'aimenu', alias: ['aihelp', 'ailist'], desc: 'AI commands ki list', category: 'ai',
+    react: '🤖', use: '.aimenu', filename: __filename
+}, async (conn, mek, m, { reply }) => {
+    return reply(
+`╭━━━〔 🤖 𝐀𝐈 𝐌𝐄𝐍𝐔 〕━━━╮
+┃
+┃ 💬 .ai <sawaal>         ➜ AI se baat karo (GPT)
+┃ 💬 .ai claude <sawaal>  ➜ Claude model
+┃ 💬 .ai deepseek <sawaal>➜ DeepSeek model
+┃
+┃ 🎨 .aiimg <description> ➜ AI se photo banwao
+┃ 👨‍💻 .aicode <kaam>       ➜ AI se code likhwao
+┃ 🎬 .aivideo              ➜ (abhi limited — dekho)
+┃
+╰━━━━━━━━━━━━━━━━━━━━━━╯
+🤖 Free public APIs — kabhi slow ho sakti hain.`
+    );
+});

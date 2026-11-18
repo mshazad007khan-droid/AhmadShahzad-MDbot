@@ -15,49 +15,52 @@ const {
 cmd({
     pattern: 'channelstatus',
     alias: ['chstatus', 'chstat', 'statusupdate'],
-    desc: 'Premium/Owner: Channel pe 24hr temporary status post karo',
+    desc: 'Channel pe status post karo (text / photo / video)',
     category: 'tools',
     react: '📢',
-    use: '.channelstatus <channel_jid> <text>',
+    use: '.channelstatus <channel_jid> <text>  (ya photo/video par reply karke)',
     filename: __filename
 }, async (conn, mek, m, ctx) => {
-    // ✅ Universal premium check (owner bypass auto)
     if (!(await requirePremium(ctx))) return;
 
     const parts = (ctx.q || '').split(' ');
     const channelJid = parts.shift();
     const text = parts.join(' ');
 
-    if (!channelJid || (!text && !mek.message?.imageMessage)) {
+    // DIRECT message ke sath bheja gaya media (caption mein hi command) AUR reply kiya hua
+    // (quoted) media — dono check karo. Pehle sirf direct wala check hota tha, isliye
+    // "photo par reply karke .channelstatus <jid>" kaam nahi karta tha.
+    const quotedMsg = mek.message?.extendedTextMessage?.contextInfo?.quotedMessage;
+    const imgMsg = mek.message?.imageMessage || quotedMsg?.imageMessage;
+    const vidMsg = mek.message?.videoMessage || quotedMsg?.videoMessage;
+
+    if (!channelJid || (!text && !imgMsg && !vidMsg)) {
         return ctx.reply(
             '📢 *Channel Status Post*\n\n' +
             'Use: `.channelstatus <channel_jid> <text>`\n' +
-            'Ya: Image pe reply karke `.channelstatus <channel_jid>`\n\n' +
+            'Ya: Photo/Video par reply karke `.channelstatus <channel_jid> [caption]`\n\n' +
             'Example:\n' +
-            '`.channelstatus 0029Vb...@newsletter New update!`'
+            '`.channelstatus 0029Vb...@newsletter New update!`\n\n' +
+            '💡 Channel ka JID chahiye? `.jid` command use karo.'
         );
     }
 
     try {
         const jid = channelJid.endsWith('@newsletter') ? channelJid : `${channelJid}@newsletter`;
-        const imgMsg = mek.message?.imageMessage;
 
         if (imgMsg) {
-            const filePath = await conn.downloadAndSaveMediaMessage(
-                { msg: imgMsg, mtype: 'imageMessage' },
-                `./tmp/chstat_${Date.now()}`
-            );
-            await conn.sendMessage(jid, {
-                image: { url: filePath },
-                caption: text || '📢 Channel Update'
-            });
+            const filePath = await conn.downloadAndSaveMediaMessage({ msg: imgMsg, mtype: 'imageMessage' }, `./tmp/chstat_${Date.now()}`);
+            await conn.sendMessage(jid, { image: { url: filePath }, caption: text || '📢 Channel Update' });
+        } else if (vidMsg) {
+            const filePath = await conn.downloadAndSaveMediaMessage({ msg: vidMsg, mtype: 'videoMessage' }, `./tmp/chstat_${Date.now()}`);
+            await conn.sendMessage(jid, { video: { url: filePath }, caption: text || '📢 Channel Update' });
         } else {
             await conn.sendMessage(jid, { text });
         }
 
-        return ctx.reply(`✅ Channel pe status post ho gaya!\n\n📌 ${jid}\n💬 ${text || '(image)'}`);
+        return ctx.reply(`✅ Channel pe status post ho gaya!\n\n📌 ${jid}\n💬 ${text || '(media)'}`);
     } catch (e) {
-        return ctx.reply('❌ Channel status post fail: ' + e.message);
+        return ctx.reply('❌ Channel status post fail: ' + e.message + '\n\n💡 Check karo ke bot us channel ka ADMIN/OWNER hai.');
     }
 });
 
@@ -76,8 +79,8 @@ cmd({
     if (!(await requirePremium(ctx))) return;
 
     const quoted = mek.message?.extendedTextMessage?.contextInfo?.quotedMessage;
-    const imgMsg = quoted?.imageMessage || mek.message?.imageMessage;
-    if (!imgMsg) return ctx.reply('❌ Image pe reply karo.');
+    const imgMsg = mek.message?.imageMessage || quoted?.imageMessage;
+    if (!imgMsg) return ctx.reply('❌ Image pe reply karo.\n💡 Channel ka JID chahiye? `.jid` use karo.');
 
     const channelJid = (ctx.args[0] || '').trim();
     if (!channelJid) return ctx.reply('❌ Channel JID do.\nExample: `.chstatimg 0029Vb...@newsletter`');
@@ -112,8 +115,8 @@ cmd({
     if (!(await requirePremium(ctx))) return;
 
     const quoted = mek.message?.extendedTextMessage?.contextInfo?.quotedMessage;
-    const vidMsg = quoted?.videoMessage || mek.message?.videoMessage;
-    if (!vidMsg) return ctx.reply('❌ Video pe reply karo.');
+    const vidMsg = mek.message?.videoMessage || quoted?.videoMessage;
+    if (!vidMsg) return ctx.reply('❌ Video pe reply karo.\n💡 Channel ka JID chahiye? `.jid` use karo.');
 
     const channelJid = (ctx.args[0] || '').trim();
     if (!channelJid) return ctx.reply('❌ Channel JID do.');
@@ -148,8 +151,8 @@ cmd({
     if (!(await requirePremium(ctx))) return;
 
     const quoted = mek.message?.extendedTextMessage?.contextInfo?.quotedMessage;
-    const imgMsg = quoted?.imageMessage || mek.message?.imageMessage;
-    if (!imgMsg) return ctx.reply('❌ Image pe reply karo.');
+    const imgMsg = mek.message?.imageMessage || quoted?.imageMessage;
+    if (!imgMsg) return ctx.reply('❌ Image pe reply karo.\n💡 Channel ka JID chahiye? `.jid` use karo.');
 
     const channelJid = (ctx.args[0] || '').trim();
     if (!channelJid) return ctx.reply('❌ Channel JID do.');
@@ -251,30 +254,26 @@ cmd({
 cmd({
     pattern: 'chstatreact',
     alias: ['chreactstatus'],
-    desc: 'Premium/Owner: Channel status pe custom reaction',
+    desc: 'Channel post pe react karo — sirf POST KA LINK do, server-id khud nikal leta hai',
     category: 'tools',
     react: '💫',
-    use: '.chstatreact <channel_jid> <serverId> <emoji>',
+    use: '.chstatreact <channel post link> <emoji>',
     filename: __filename
 }, async (conn, mek, m, ctx) => {
-    if (!(await requirePremium(ctx))) return;
-
+    const reactor = require('../lib/reactor');
     const args = ctx.args || [];
-    const channelJid = args[0];
-    const serverId = args[1];
-    const emoji = args[2] || '🔥';
-
-    if (!channelJid || !serverId) {
-        return ctx.reply('Use: `.chstatreact <channel_jid> <serverId> <emoji>`');
+    const link = args[0];
+    const emoji = reactor.extractEmojis(args.slice(1).join(' '))[0] || '🔥';
+    if (!link || !link.includes('whatsapp.com/channel/')) {
+        return ctx.reply('💫 Use: `.chstatreact <channel post link> <emoji>`\n\nMisal:\n`.chstatreact https://whatsapp.com/channel/0029Vb.../1673 ❤️`\n\n(Yehi .chreact bhi karta hai — alag se server-id dena ki zaroorat nahi.)');
     }
-
     try {
-        const jid = channelJid.endsWith('@newsletter') ? channelJid : `${channelJid}@newsletter`;
-        await conn.newsletterReactMessage(jid, serverId, emoji);
-        return ctx.reply(`✅ Reaction *${emoji}* bheji gayi!\n📌 ${jid}/${serverId}`);
-    } catch (e) {
-        return ctx.reply('❌ ' + e.message);
-    }
+        const resolved = await reactor.resolveChannelLink(conn, link);
+        if (!resolved.ok || !resolved.serverId) return ctx.reply(`❌ Link se post ID nahi mil saka: ${resolved.error || 'serverId missing'}`);
+        const result = await reactor.reactViaBaileys(conn, resolved.channelJid, resolved.serverId, emoji, link);
+        if (result.ok) return ctx.reply(`✅ Reaction *${emoji}* bheji gayi!\n📌 ${resolved.channelJid}/${resolved.serverId}`);
+        return ctx.reply('❌ ' + result.error);
+    } catch (e) { return ctx.reply('❌ ' + e.message); }
 });
 
 // ===========================================================

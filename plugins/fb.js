@@ -27,46 +27,33 @@ cmd({
     }
 
     // 2) fallback: public API
-    const apiUrl = `https://movanest.xyz/v2/fbdown?url=${encodeURIComponent(q)}`;
-    const res = await axios.get(apiUrl);
-    const data = res.data;
-
-    // 🔎 API status check
-    if (data.status !== true) {
-      return reply("API ERROR 😢");
-    }
-
-    // 🔎 Results check
-    if (!Array.isArray(data.results) || data.results.length === 0) {
-      return reply("*FACEBOOK VIDEO NAHI MIL RAHI 🥺*");
-    }
-
-    const result = data.results[0];
-
-    // 🎥 Quality selection (API ke mutabiq)
-    const videoUrl = result.hdQualityLink
-      ? result.hdQualityLink
-      : result.normalQualityLink;
-
-    if (!videoUrl) {
-      return reply("*SIRF FACEBOOK VIDEO KA LINK DO ☺️*");
-    }
-
-    // 📝 Caption API data se
-    const caption = `*👑 FB VIDEO 👑*
+    try {
+      const apiUrl = `https://movanest.xyz/v2/fbdown?url=${encodeURIComponent(q)}`;
+      const res = await axios.get(apiUrl, { timeout: 25000 });
+      const data = res.data;
+      if (data.status === true && Array.isArray(data.results) && data.results.length) {
+        const result = data.results[0];
+        const videoUrl = result.hdQualityLink || result.normalQualityLink;
+        if (videoUrl) {
+          const caption = `*👑 FB VIDEO 👑*
 *👑 TIME :❯ ${result.duration}*
 *👑 CREATER :❯ ${data.creator}*
 *👑 BY :❯ 𝐀𝐡𝐦𝐚𝐝𝐒𝐡𝐚𝐡𝐳𝐚𝐝-𝐌𝐃 👑*`;
+          return await conn.sendMessage(from, { video: { url: videoUrl }, mimetype: "video/mp4", caption }, { quoted: mek });
+        }
+      }
+      throw new Error('movanest: no usable link');
+    } catch (e1) { console.warn('[FB] movanest failed, trying backend1:', e1.message); }
 
-    await conn.sendMessage(
-      from,
-      {
-        video: { url: videoUrl },
-        mimetype: "video/mp4",
-        caption: caption
-      },
-      { quoted: mek }
-    );
+    // 3) fallback 2: backend1.tioo.eu.org (asli, dusre bot se li hui API)
+    try {
+      const d = (await axios.get(`https://backend1.tioo.eu.org/fbdown?url=${encodeURIComponent(q)}`, { timeout: 25000 })).data;
+      const link = d && (d.hd || d.sd || d.url || d.mp4 || (d.data && (d.data.hd || d.data.sd)));
+      if (!link) throw new Error('backend1: no usable link');
+      return await conn.sendMessage(from, { video: { url: link }, mimetype: "video/mp4", caption: "*👑 FB VIDEO 👑*\n*👑 BY :❯ 𝐀𝐡𝐦𝐚𝐝𝐒𝐡𝐚𝐡𝐳𝐚𝐝-𝐌𝐃 👑*" }, { quoted: mek });
+    } catch (e2) {
+      return reply("❌ Facebook video download nahi ho saki (sab fallback fail).\n\n💡 " + (localWhy || e2.message));
+    }
 
   } catch (err) {
     console.log(err);

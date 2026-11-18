@@ -51,14 +51,15 @@ async (conn, mek, m, { args, reply }) => {
         }
 
         // react
-        const result = await reactor.reactViaBaileys(conn, resolved.channelJid, resolved.serverId, emoji);
+        const result = await reactor.reactViaBaileys(conn, resolved.channelJid, resolved.serverId, emoji, link);
 
         if (result.ok) {
             return reply(
 `✅ *REACTED*
 📡 Channel : \`${resolved.channelJid.split('@')[0].slice(0, 20)}...\`
 🎯 Post    : #${resolved.serverId}
-💫 Emoji   : ${emoji}`
+💫 Emoji   : ${emoji}
+🔧 Via     : ${result.via === 'external-api' ? 'backup API' : 'Baileys (direct)'}`
             );
         } else {
             return reply(`⚠️ *Failed:* ${result.error}`);
