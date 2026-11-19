@@ -17,9 +17,9 @@ const CATEGORY_ICONS = {
     owner: '👑', group: '👥', download: '📥', music: '🎵', anime: '🎌', fun: '🎮',
     games: '🎲', love: '💞', emotions: '😊', islamic: '🕌', tools: '🧰', utility: '🛠️',
     image: '🖼️', system: '💻', search: '🔎', misc: '📦', personal: '👤',
-    textfx: '🔤', calc: '🧮', funzone: '🎉', extra: '✨', video: '🎬', prank: '😈', voice: '🎙️', voicechange: '🗣️', ai: '🤖', name: '✍️', videoedit: '🎞️', photoedit: '🖼️', audioedit: '🎧'
+    textfx: '🔤', calc: '🧮', funzone: '🎉', extra: '✨', video: '🎬', prank: '😈', voice: '🎙️', voicechange: '🗣️', ai: '🤖', name: '✍️', videoedit: '🎞️', photoedit: '🖼️', audioedit: '🎧', kashmir: '🏔️'
 };
-const CATEGORY_ORDER = ['owner', 'voice', 'voicechange', 'video', 'prank', 'group', 'ai', 'download', 'music', 'tools', 'sticker', 'videoedit', 'photoedit', 'audioedit',
+const CATEGORY_ORDER = ['owner', 'voice', 'voicechange', 'kashmir', 'video', 'prank', 'group', 'ai', 'download', 'music', 'tools', 'sticker', 'videoedit', 'photoedit', 'audioedit',
     'fun', 'islamic', 'anime', 'name', 'games', 'love', 'emotions', 'main', 'general', 'settings', 'utility', 'image', 'system', 'search', 'misc', 'textfx', 'calc', 'funzone'];
 const TOP_COMMANDS = ['song', 'video', 'play', 'tiktok', 'fb', 'ig', 'ytmp3', 'ai', 'sticker', 'vv', 'tts', 'bgmusicvoice', 'prank', 'ping', 'alive', 'owner', 'menu'];
 // -------------------------------------------------

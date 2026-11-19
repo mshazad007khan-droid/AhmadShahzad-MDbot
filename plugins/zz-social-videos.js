@@ -184,4 +184,4 @@ cmd({
     return ctx.reply(['tiktok', 'facebook', 'instagram'].map(k => menuText(p, k)).join('\n\n'));
 });
 
-module.exports = { CATS, tikwmSearch };
+module.exports = { CATS, tikwmSearch, fetchBuffer };

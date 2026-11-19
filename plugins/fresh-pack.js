@@ -498,39 +498,7 @@ cmd({
     ].join('\n'));
 });
 
-// ===========================================================
-// 22. VV2 — View-once save (advanced)
-// ===========================================================
-cmd({
-    pattern: 'vv2',
-    alias: ['savevo'],
-    desc: 'View-once save (advanced)',
-    category: 'tools',
-    react: '👁️',
-    filename: __filename
-}, async (conn, mek, m, ctx) => {
-    const quoted = mek.message?.extendedTextMessage?.contextInfo?.quotedMessage;
-    if (!quoted) return ctx.reply('❌ View-once message pe reply karo.');
-
-    const inner = quoted.viewOnceMessageV2?.message || quoted.viewOnceMessage?.message || quoted;
-    const type = inner?.imageMessage ? 'image' : inner?.videoMessage ? 'video' : null;
-    if (!type) return ctx.reply('❌ Ye view-once nahi.');
-
-    try {
-        const media = inner[`${type}Message`];
-        const stream = await conn.downloadAndSaveMediaMessage(
-            { msg: media, mtype: `${type}Message` },
-            `./tmp/vv2_${Date.now()}`
-        );
-        await conn.sendMessage(ctx.from, {
-            [type]: { url: stream },
-            caption: media.caption || '👁️ Saved'
-        }, { quoted: mek });
-        require('fs-extra').remove(stream).catch(() => {});
-    } catch (e) { return ctx.reply('❌ ' + e.message); }
-});
-
-// ===========================================================
+// 22. VV2 -> v7 mein plugins/vv.js ke andar (.vv2 / .vvdm) maujood hai
 
 // NOTE: The following command in the supplied ZIP was truncated and has been omitted
 // so this plugin can load safely. Restore it from a complete source before re-adding.
