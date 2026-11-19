@@ -3,7 +3,6 @@
 FROM node:20-bookworm-slim
 
 ENV NODE_ENV=production \
-    NODE_OPTIONS=--max-old-space-size=1536 \
     NPM_CONFIG_UPDATE_NOTIFIER=false \
     NPM_CONFIG_FUND=false \
     NPM_CONFIG_AUDIT=false

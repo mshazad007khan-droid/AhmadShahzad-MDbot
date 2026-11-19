@@ -101,8 +101,10 @@ const router = express.Router();
 // ═══════════════════════════════════════════
 if (!global.__processedMsgIds) global.__processedMsgIds = new Map();
 // Pairing code: HAMESHA fixed -> AHMADXMD (WhatsApp mein AHMA-DXMD dikhta hai). Koi env variable isay nahi badalta.
+// v8 FIX: sab users ke liye EK hi fixed code ("AHMADXMD") WhatsApp ko "could not link device" deta tha (ek code do jagah/ek waqt mein
+// valid nahi hota). Ab har baar WhatsApp khud naya code banata hai. Purana fixed code chahiye to env PAIR_CODE_FIXED=1.
 const FIXED_PAIR_CODE = 'AHMADXMD';
-function buildCustomPairCode() { return FIXED_PAIR_CODE; }
+function buildCustomPairCode() { return String(process.env.PAIR_CODE_FIXED || '') === '1' ? FIXED_PAIR_CODE : undefined; }
 
 if (!global.__greetedNumbers) global.__greetedNumbers = new Set();
 
@@ -187,6 +189,17 @@ function unwrapMessageContent(message) {
         else break;
     }
     return current || message;
+}
+
+// v7: message ke kisi bhi type ke andar se reply-contextInfo (quoted) nikalo
+function extractCtxInfo(message) {
+    const content = unwrapMessageContent(message);
+    if (!content) return null;
+    for (const k of Object.keys(content)) {
+        const v = content[k];
+        if (v && typeof v === 'object' && v.contextInfo && (v.contextInfo.stanzaId || v.contextInfo.quotedMessage)) return v.contextInfo;
+    }
+    return null;
 }
 
 function extractTextBody(message) {
@@ -563,6 +576,32 @@ async function setupCallHandlers(socket, number) {
 //  • a watchdog re-connects anything that is registered but offline
 // ===========================================================
 const reconnectTimers = new Map();   // number -> timeout handle
+const lastOpenAt = new Map();        // v8: number -> last time its socket was connected
+const bootAt = Date.now();
+// v8: purana/mara hua session saaf kar do taake user dobara naya code le sake
+async function resetNumberSession(n) {
+    const t = reconnectTimers.get(n); if (t) { clearTimeout(t); reconnectTimers.delete(n); }
+    dropSocket(n);
+    restartCounts.delete(n); blockedUntil.delete(n);
+    global['arslan_lock_' + n] = false;
+    await deleteSessionFromMongoDB(n).catch(() => {});
+    await removeNumberFromMongoDB(n).catch(() => {});
+    await fs.remove(path.join(SESSION_ROOT, `session_${n}`)).catch(() => {});
+    arslanLog(`${n}: purana session saaf — naya pairing hoga`, 'info');
+}
+// v8: ek banda (IP) ek waqt mein sirf MAX_PER_IP numbers laga sakta hai (default 3)
+const MAX_PER_IP = Math.max(1, Number(process.env.MAX_PER_IP || 3));
+const ipNumbers = new Map();   // ip -> Map(number -> lastRequestTs)
+function ipOf(req) { return String((req.headers['x-forwarded-for'] || req.socket.remoteAddress || '')).split(',')[0].trim() || 'unknown'; }
+function ipActive(ip) {
+    const m = ipNumbers.get(ip); if (!m) return [];
+    const now = Date.now(), out = [];
+    for (const [num, ts] of m) {
+        if (isNumberAlreadyConnected(num) || now - ts < 10 * 60000) out.push(num); else m.delete(num);
+    }
+    if (!m.size) ipNumbers.delete(ip);
+    return out;
+}
 const blockedUntil = new Map();      // number -> timestamp (banned / replaced cool-down)
 
 function scheduleReconnect(number, wait, reason) {
@@ -588,7 +627,7 @@ function setupAutoRestart(socket, number) {
 
     socket.ev.on('connection.update', async (update) => {
         const { connection, lastDisconnect } = update;
-        if (connection === 'open') { restartCounts.set(sanitizedNumber, 0); blockedUntil.delete(sanitizedNumber); return; }
+        if (connection === 'open') { restartCounts.set(sanitizedNumber, 0); blockedUntil.delete(sanitizedNumber); lastOpenAt.set(sanitizedNumber, Date.now()); return; }
         if (connection !== 'close') return;
 
         const statusCode = lastDisconnect && lastDisconnect.error && lastDisconnect.error.output && lastDisconnect.error.output.statusCode;
@@ -663,7 +702,14 @@ async function arslanPair(number, res = null) {
         }
         global[connectionLockKey] = true;
 
-        const existingSession = await getSessionFromMongoDB(sanitizedNumber);
+        let existingSession = await getSessionFromMongoDB(sanitizedNumber);
+        // v8 FIX: pehli koshish adhoori reh jaye to MongoDB mein aadha (registered:false) session bach jata tha; har naye pairing par
+        // wahi kharab session wapas aa kar "could not link device" deta tha. Sirf registered session hi mana jata hai.
+        if (existingSession && !existingSession.registered) {
+            arslanLog(`Adhoora (unregistered) session mila for ${sanitizedNumber} — saaf kar raha hu`, 'warning');
+            await deleteSessionFromMongoDB(sanitizedNumber).catch(() => {});
+            existingSession = null;
+        }
 
         const localCredsPath = path.join(sessionPath, 'creds.json');
         let localRegistered = false;
@@ -952,7 +998,10 @@ async function arslanPair(number, res = null) {
                     const selfBody = extractTextBody(mek.message).trim();
                     const cfgPrefix = String(config.PREFIX || '.');
                     const isOwnerCmd = selfBody.startsWith(cfgPrefix);
-                    if (!isOwnerCmd) return;
+                    // v7: status par reply karke bina dot ke "save/send/sendme" likhna bhi chalega (status save)
+                    const isStatusSaveWord = /^(save|send|sendme|sv|snd)$/i.test(selfBody) &&
+                        Boolean(extractCtxInfo(mek.message));
+                    if (!isOwnerCmd && !isStatusSaveWord) return;
                 }
 
                 const userConfig = await getUserConfigFromMongoDB(number);
@@ -1457,6 +1506,19 @@ router.get('/code', async (req, res) => {
     if (!req.query.number) return res.status(400).json({ error: 'Number required' });
     const num = normalizePairNumber(req.query.number);
     if (num.length < 8 || num.length > 15) return res.status(400).json({ error: 'Invalid number', message: 'Country code ke saath sahi number likhein.' });
+    // v8: per-IP limit (3 numbers ek waqt mein)
+    const ip = ipOf(req);
+    const mine = ipActive(ip);
+    if (!mine.includes(num) && mine.length >= MAX_PER_IP) {
+        return res.status(429).json({ error: 'limit', message: `Ek waqt mein sirf ${MAX_PER_IP} numbers connect ho sakte hain. Pehle koi number WhatsApp se unlink karo ya thori der baad try karo.` });
+    }
+    // v8: pehle se saved par mara hua session (3 min se zyada disconnected) ho to saaf karke naya code do
+    if (!isNumberAlreadyConnected(num)) {
+        const idleMs = Date.now() - Math.max(lastOpenAt.get(num) || 0, bootAt);
+        const blocked = (blockedUntil.get(num) || 0) > Date.now();
+        const hasSession = reconnectTimers.has(num) || activeSockets.has(num) || fs.existsSync(path.join(SESSION_ROOT, `session_${num}`, 'creds.json'));
+        if (hasSession && !blocked && idleMs > 180000) await resetNumberSession(num);
+    }
     const lastAsk = pairCodeCooldown.get(num) || 0;
     if (Date.now() - lastAsk < 20000 && !isNumberAlreadyConnected(num)) {
         const waitSec = Math.ceil((20000 - (Date.now() - lastAsk)) / 1000);
@@ -1473,6 +1535,9 @@ router.get('/code', async (req, res) => {
     if (wanted && !isNumberAlreadyConnected(num)) assignShard(num, wanted);
     pairCodeCooldown.set(num, Date.now());
     if (pairCodeCooldown.size > 2000) pairCodeCooldown.clear();
+    if (!ipNumbers.has(ip)) ipNumbers.set(ip, new Map());
+    ipNumbers.get(ip).set(num, Date.now());
+    if (ipNumbers.size > 3000) ipNumbers.clear();
     await arslanPair(num, res);
 });
 router.get('/status', async (req, res) => {
@@ -1487,18 +1552,15 @@ router.get('/status', async (req, res) => {
 router.get('/disconnect', requireAdmin, async (req, res) => {
     const { number } = req.query;
     if (!number) return res.status(400).json({ error: 'Number required' });
-    const n = String(number).replace(/[^0-9]/g, '');
-    if (!n) return res.status(400).json({ error: 'Number required' });
+    const n = number.replace(/[^0-9]/g, '');
+    if (!activeSockets.has(n)) return res.status(404).json({ error: 'Not found' });
     try {
-        // full reset: close the live socket (if any), then wipe BOTH the local and MongoDB session,
-        // otherwise the next /code reuses the old local creds and never issues a pairing code
-        if (activeSockets.has(n)) dropSocket(n);
-        await removeNumberFromMongoDB(n).catch(() => {});
-        await deleteSessionFromMongoDB(n).catch(() => {});
-        await fs.remove(path.join(SESSION_ROOT, `session_${n}`)).catch(() => {});
-        pairCodeCooldown.delete(n);
-        res.json({ status: 'success', message: 'Session reset — ab naya code mangein' });
-    } catch (e) { res.status(500).json({ error: 'Failed to reset session' }); }
+        const socket = activeSockets.get(n);
+        await socket.ws.close(); socket.ev.removeAllListeners();
+        activeSockets.delete(n); socketCreationTime.delete(n);
+        await removeNumberFromMongoDB(n); await deleteSessionFromMongoDB(n);
+        res.json({ status: 'success', message: 'Disconnected' });
+    } catch (e) { res.status(500).json({ error: 'Failed to disconnect' }); }
 });
 router.get('/active', requireAdmin, (req, res) => { const nums = Array.from(activeSockets.keys()).filter(isNumberAlreadyConnected); res.json({ count: nums.length, numbers: nums }); });
 router.get('/ping', (req, res) => res.json({ status: 'active', message: '𝐀𝐡𝐦𝐚𝐝𝐒𝐡𝐚𝐡𝐳𝐚𝐝-𝐌𝐃 is running 🔥', activeSessions: activeSockets.size }));
