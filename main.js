@@ -1487,15 +1487,18 @@ router.get('/status', async (req, res) => {
 router.get('/disconnect', requireAdmin, async (req, res) => {
     const { number } = req.query;
     if (!number) return res.status(400).json({ error: 'Number required' });
-    const n = number.replace(/[^0-9]/g, '');
-    if (!activeSockets.has(n)) return res.status(404).json({ error: 'Not found' });
+    const n = String(number).replace(/[^0-9]/g, '');
+    if (!n) return res.status(400).json({ error: 'Number required' });
     try {
-        const socket = activeSockets.get(n);
-        await socket.ws.close(); socket.ev.removeAllListeners();
-        activeSockets.delete(n); socketCreationTime.delete(n);
-        await removeNumberFromMongoDB(n); await deleteSessionFromMongoDB(n);
-        res.json({ status: 'success', message: 'Disconnected' });
-    } catch (e) { res.status(500).json({ error: 'Failed to disconnect' }); }
+        // full reset: close the live socket (if any), then wipe BOTH the local and MongoDB session,
+        // otherwise the next /code reuses the old local creds and never issues a pairing code
+        if (activeSockets.has(n)) dropSocket(n);
+        await removeNumberFromMongoDB(n).catch(() => {});
+        await deleteSessionFromMongoDB(n).catch(() => {});
+        await fs.remove(path.join(SESSION_ROOT, `session_${n}`)).catch(() => {});
+        pairCodeCooldown.delete(n);
+        res.json({ status: 'success', message: 'Session reset — ab naya code mangein' });
+    } catch (e) { res.status(500).json({ error: 'Failed to reset session' }); }
 });
 router.get('/active', requireAdmin, (req, res) => { const nums = Array.from(activeSockets.keys()).filter(isNumberAlreadyConnected); res.json({ count: nums.length, numbers: nums }); });
 router.get('/ping', (req, res) => res.json({ status: 'active', message: '𝐀𝐡𝐦𝐚𝐝𝐒𝐡𝐚𝐡𝐳𝐚𝐝-𝐌𝐃 is running 🔥', activeSessions: activeSockets.size }));
