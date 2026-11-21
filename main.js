@@ -1395,6 +1395,10 @@ async function applyChannelsToAll(onlyCode) {
     return true;
 }
 
+router.get('/api/panel/reacts', requirePanelAuth, (req, res) => {
+    res.set('Cache-Control', 'no-store');
+    try { res.json({ reacts: require('./lib/panel-reacts').all() }); } catch (e) { res.json({ reacts: [], error: e.message }); }
+});
 router.get('/api/panel/channels', requirePanelAuth, async (req, res) => {
     res.set('Cache-Control', 'no-store');
     res.json({ channels: await channelStore.list(), connectedNumbers: connectedNumbers().length, job: channelJob });

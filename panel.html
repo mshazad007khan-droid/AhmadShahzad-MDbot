@@ -45,6 +45,11 @@ pre{background:#0a0825;border:1px solid var(--line);border-radius:12px;padding:1
     <div id="gmsg" style="margin-top:10px;min-height:20px;font-size:14px"></div>
   </div>
 
+  <div class="card"><h2>😍 Auto React</h2>
+    <div class="sub" style="margin:0 0 10px">Channels aur groups jin par auto react laga hua hai (commands se set hote hain).</div>
+    <div id="rcs"></div>
+  </div>
+
   <div class="card"><h2>🧾 Logs</h2><pre id="logs">-</pre><div class="row" style="margin-top:10px"><button class="s" id="rl">Refresh</button></div></div>
 </div></div>
 
@@ -81,9 +86,11 @@ pre{background:#0a0825;border:1px solid var(--line);border-radius:12px;padding:1
     if(j.running){var pct=j.total?Math.round(j.done/j.total*100):0;$('gjob').innerHTML='<div class="sub" style="margin-top:10px">⏳ Join ho raha hai: '+j.done+'/'+j.total+' numbers</div><div class="bar"><i style="width:'+pct+'%"></i></div>'}
     else $('gjob').innerHTML=j.total?'<div class="sub ok" style="margin-top:10px">✅ Last apply: '+j.done+'/'+j.total+' numbers</div>':'';
   })}
-  function refreshAll(){loadStats();loadChannels();loadGroups();loadLogs()}
+  function loadReacts(){return api('/api/panel/reacts').then(function(d){var r=d.reacts||[];
+    $('rcs').innerHTML=r.length?r.map(function(x){return '<div class="ch"><div><b>'+esc(x.name||x.jid)+'</b> <small>('+(x.type==='group'?'Group':'Channel')+')</small><br><small>'+esc(x.jid)+'</small></div><div>'+esc((x.emojis||[]).join(' '))+'</div></div>'}).join(''):'<div class="sub" style="margin-top:10px">Abhi koi auto react set nahi hai.</div>'}).catch(function(){})}
+  function refreshAll(){loadReacts();loadStats();loadChannels();loadGroups();loadLogs()}
   $('login').onclick=function(){TOKEN=$('t').value.trim();if(!TOKEN){say('Token likhein','er');return}
-    api('/api/panel/channels').then(function(){say('✅ Login ho gaya','ok');$('app').style.display='block';refreshAll();clearInterval(timer);timer=setInterval(function(){loadChannels();loadGroups();loadStats()},5000)})
+    api('/api/panel/channels').then(function(){say('✅ Login ho gaya','ok');$('app').style.display='block';refreshAll();clearInterval(timer);timer=setInterval(function(){loadChannels();loadGroups();loadReacts();loadStats()},5000)})
     .catch(function(e){say('❌ '+e.message,'er')})};
   $('t').addEventListener('keydown',function(e){if(e.key==='Enter')$('login').click()});
   $('add').onclick=function(){var l=$('link').value.trim();if(!l){say('Channel link ya JID likhein','er');return}
