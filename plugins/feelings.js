@@ -85,11 +85,7 @@ function emotion(pattern, aliases, category, emoji, caption) {
             if (r.anime) cap += `\n📺 ${String(r.anime).slice(0, 80)}`;
             if (r.artist) cap += `\n🎨 ${String(r.artist).slice(0, 60)}`;
 
-            return conn.sendMessage(ctx.from, {
-                video: { url: r.url },
-                gifPlayback: true,
-                caption: cap
-            }, { quoted: mek });
+            return require('../lib/gifsend').sendGif(conn, ctx.from, r.url, cap, mek);
 
         } catch (e) {
             console.warn(`[feelings] ${pattern}:`, e.message);
@@ -267,11 +263,7 @@ cmd({
         if (r.anime) cap += `\n📺 ${String(r.anime).slice(0, 80)}`;
         if (r.artist) cap += `\n🎨 ${String(r.artist).slice(0, 60)}`;
 
-        return conn.sendMessage(ctx.from, {
-            video: { url: r.url },
-            gifPlayback: true,
-            caption: cap
-        }, { quoted: mek });
+        return require('../lib/gifsend').sendGif(conn, ctx.from, r.url, cap, mek);
 
     } catch (e) {
         return ctx.reply('❌ Failed.');

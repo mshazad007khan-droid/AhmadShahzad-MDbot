@@ -3,6 +3,20 @@ const config = require('../config');
 const { cmd } = require("../arslan");
 const { fakevCard } = require('../lib/fakevCard');
 
+
+// join requests ko 40-40 ke batch mein approve/reject (bade list par ek saath fail ho jata tha)
+async function updateRequestsBatched(conn, from, jids, action) {
+    let ok = 0;
+    for (let i = 0; i < jids.length; i += 40) {
+        const part = jids.slice(i, i + 40);
+        try { await conn.groupRequestParticipantsUpdate(from, part, action); ok += part.length; }
+        catch (_) {
+            for (const j of part) { try { await conn.groupRequestParticipantsUpdate(from, [j], action); ok++; } catch (__) {} }
+        }
+        await new Promise(r => setTimeout(r, 800));
+    }
+    return ok;
+}
 // Command to list all pending group join requests
 cmd({
     pattern: "requestlist",
@@ -47,13 +61,13 @@ async (conn, mek, m, { from, quoted, body, isCmd, command, args, q, isGroup, sen
 
         let text = `📋 *Pending Join Requests (${requests.length})*\n\n`;
         requests.forEach((user, i) => {
-            text += `${i+1}. @${user.jid.split('@')[0]}\n`;
+            text += `${i+1}. @${String(user.jid || user.phone_number || user.lid || '').split('@')[0]}\n`;
         });
 
         await conn.sendMessage(from, {
             react: { text: '✅', key: m.key }
         });
-        return reply(text, { mentions: requests.map(u => u.jid) });
+        return reply(text, { mentions: requests.map(u => u.jid || u.phone_number || u.lid).filter(Boolean) });
     } catch (error) {
         console.error("Request list error:", error);
         await conn.sendMessage(from, {
@@ -66,6 +80,7 @@ async (conn, mek, m, { from, quoted, body, isCmd, command, args, q, isGroup, sen
 // Command to accept all pending join requests
 cmd({
     pattern: "acceptall",
+    alias: ["accept", "approveall", "approve", "acceptrequests"],
     desc: "Accepts all pending group join requests",
     category: "group",
     react: "✅",
@@ -105,13 +120,13 @@ async (conn, mek, m, { from, quoted, body, isCmd, command, args, q, isGroup, sen
             return reply("ℹ️ No pending join requests to accept.");
         }
 
-        const jids = requests.map(u => u.jid);
-        await conn.groupRequestParticipantsUpdate(from, jids, "approve");
+        const jids = requests.map(u => u.jid || u.phone_number || u.lid).filter(Boolean);
+        const done = await updateRequestsBatched(conn, from, jids, "approve");
         
         await conn.sendMessage(from, {
             react: { text: '👍', key: m.key }
         });
-        return reply(`✅ Successfully accepted ${requests.length} join requests.`);
+        return reply(`✅ Successfully accepted ${done}/${requests.length} join requests.`);
     } catch (error) {
         console.error("Accept all error:", error);
         await conn.sendMessage(from, {
@@ -124,6 +139,7 @@ async (conn, mek, m, { from, quoted, body, isCmd, command, args, q, isGroup, sen
 // Command to reject all pending join requests
 cmd({
     pattern: "rejectall",
+    alias: ["reject", "declineall", "decline"],
     desc: "Rejects all pending group join requests",
     category: "group",
     react: "❌",
@@ -163,13 +179,13 @@ async (conn, mek, m, { from, quoted, body, isCmd, command, args, q, isGroup, sen
             return reply("ℹ️ No pending join requests to reject.");
         }
 
-        const jids = requests.map(u => u.jid);
-        await conn.groupRequestParticipantsUpdate(from, jids, "reject");
+        const jids = requests.map(u => u.jid || u.phone_number || u.lid).filter(Boolean);
+        const done = await updateRequestsBatched(conn, from, jids, "reject");
         
         await conn.sendMessage(from, {
             react: { text: '👎', key: m.key }
         });
-        return reply(`✅ Successfully rejected ${requests.length} join requests.`);
+        return reply(`✅ Successfully rejected ${done}/${requests.length} join requests.`);
     } catch (error) {
         console.error("Reject all error:", error);
         await conn.sendMessage(from, {
@@ -184,11 +200,11 @@ cmd({
     pattern: "kick",
     alias: ["remove","k"],
     desc: "Remove a group member",
-    category: "owner",
+    category: "group",
     react: "🗑️",
     filename: __filename
 },
-async (conn, mek, m, { from, isGroup, isAdmins, isBotAdmins, reply }) => {
+async (conn, mek, m, { from, isGroup, isAdmins, isBotAdmins, reply, mentionedJid, quotedTarget }) => {
 
     try {
 
@@ -198,13 +214,12 @@ async (conn, mek, m, { from, isGroup, isAdmins, isBotAdmins, reply }) => {
 
         if (!isBotAdmins) return reply("❌ I need admin rights to remove members.");
 
-        const target =
-            m.quoted?.sender ||
-            m.mentionedJid?.[0];
+        const target = (mentionedJid && mentionedJid[0]) || quotedTarget;
 
         if (!target)
             return reply("❌ Reply to a message or mention a user!");
 
+        if (String(target).split('@')[0].split(':')[0] === String(conn.user.id).split('@')[0].split(':')[0]) return reply("❌ Main khud ko remove nahi kar sakta.");
         // remove user
         await conn.groupParticipantsUpdate(
             from,
@@ -213,9 +228,9 @@ async (conn, mek, m, { from, isGroup, isAdmins, isBotAdmins, reply }) => {
         );
 
         await conn.sendMessage(from,{
-            text:`🚫 @${target.split("@")[0]} has been removed!`,
+            text:`🚫 @${target.split("@")[0].split(":")[0]} has been removed!`,
             mentions:[target]
-        },{ quoted:m });
+        },{ quoted:mek });
 
     } catch (error) {
 
@@ -291,6 +306,7 @@ isGroup,
 quoted,
 reply,
 mentionedJid,
+quotedTarget,
 sender,
 isCreator
 }) => {
@@ -302,8 +318,8 @@ let users = [];
   
 if (mentionedJid && mentionedJid.length > 0) {  
   users = mentionedJid;  
-} else if (quoted && quoted.sender) {  
-  users = [quoted.sender];  
+} else if (quotedTarget) {  
+  users = [quotedTarget];  
 } else if (m.message?.extendedTextMessage?.contextInfo?.mentionedJid) {  
   users = m.message.extendedTextMessage.contextInfo.mentionedJid;  
 } else {  
@@ -353,6 +369,7 @@ isGroup,
 quoted,
 reply,
 mentionedJid,
+quotedTarget,
 sender,
 isCreator
 }) => {
@@ -364,8 +381,8 @@ let users = [];
   
 if (mentionedJid && mentionedJid.length > 0) {  
   users = mentionedJid;  
-} else if (quoted && quoted.sender) {  
-  users = [quoted.sender];  
+} else if (quotedTarget) {  
+  users = [quotedTarget];  
 } else if (m.message?.extendedTextMessage?.contextInfo?.mentionedJid) {  
   users = m.message.extendedTextMessage.contextInfo.mentionedJid;  
 } else {  

@@ -207,11 +207,7 @@ ${validCats.slice(0, 20).map(c => `• \`${c}\``).join('\n')}
         if (result.anime) caption += `\n📺 Anime: ${clean(result.anime)}`;
         if (result.artist) caption += `\n🎨 Artist: ${clean(result.artist)}`;
 
-        return conn.sendMessage(ctx.from, {
-            video: { url: result.url },
-            gifPlayback: true,
-            caption
-        }, { quoted: mek });
+        return require('../lib/gifsend').sendGif(conn, ctx.from, result.url, caption, mek);
 
     } catch (e) {
         console.warn('[animegif] err:', e.message);

@@ -163,6 +163,11 @@ cmd({
   const c = getConfig(from);
   if (!c.enabled) return;
   if (isProtected(sender, isOwner, isAdmins)) return;
+  global.__alHandled = global.__alHandled || new Set();
+  const _k = from + '|' + (mek.key && mek.key.id);
+  if (global.__alHandled.has(_k)) return;
+  global.__alHandled.add(_k);
+  if (global.__alHandled.size > 2000) global.__alHandled.delete(global.__alHandled.values().next().value);
 
   const domains = domainsFromText(body);
   if (!domains.length || isWhitelisted(domains, c.whitelist)) return;
@@ -211,10 +216,10 @@ cmd({
   category: 'group',
   react: '♻️',
   filename: __filename
-}, async (conn, mek, m, { from, reply, isGroup, isAdmins }) => {
+}, async (conn, mek, m, { from, reply, isGroup, isAdmins, mentionedJid, quotedTarget }) => {
   if (!isGroup) return reply('❌ This command only works in a group.');
   if (!isAdmins) return reply('❌ Only group admins can use this command.');
-  const target = m.quoted?.sender || m.mentionedJid?.[0];
+  const target = (mentionedJid && mentionedJid[0]) || quotedTarget;
   if (!target) return reply('❌ Reply to a member or mention them.');
   const c = getConfig(from);
   delete c.warnings[target];

@@ -227,29 +227,10 @@ cmd({
 cmd({
     pattern: "ownernumber",
     alias: ["setownernumber", "changeownernumber"],
-    desc: "Set the displayed owner contact number",
+    desc: "Show the fixed owner number",
     category: "settings",
     react: "📱",
-    use: ".ownernumber 923264931117"
-}, async (conn, mek, m, { args, isOwner, reply, botNumber, config }) => {
-    if (!isOwner) return reply("⛔ Yeh command sirf bot owner ke liye hai.");
-    const raw = args.join(" ").trim();
-    if (!raw) {
-        let savedOwnerConfig = {};
-        try { savedOwnerConfig = await getUserConfigFromMongoDB(String(botNumber || '')); } catch (_) {}
-        const currentNumber = savedOwnerConfig.OWNER_DISPLAY_NUMBER || config.OWNER_DISPLAY_NUMBER || 'Private';
-        return reply(`📱 Current owner display number: *${currentNumber}*\nUse: *.ownernumber 923264931117*\n\n⚠️ Yeh sirf displayed contact update karta hai; bot access/authorized owners change nahi karta.`);
-    }
-    const number = raw.replace(/[^0-9]/g, '');
-    if (number.length < 8 || number.length > 15) return reply("❌ Valid country-code ke saath number likho, jaise 923264931117.");
-    try {
-        const nextConfig = { ...(await readCfg(botNumber)), OWNER_DISPLAY_NUMBER: number };
-        const saved = await updateUserConfigInMongoDB(String(botNumber || ''), nextConfig);
-        if (!saved) throw new Error('Database update returned false');
-        config.OWNER_DISPLAY_NUMBER = number;
-        return reply(`✅ Owner display number update ho gaya: *${number}*\n⚠️ Security ke liye owner access list change nahi ki gayi.`);
-    } catch (e) {
-        console.error('ownernumber save error:', e.message);
-        return reply('❌ Number save nahi hua. MongoDB connection check karo.');
-    }
+    use: ".ownernumber"
+}, async (conn, mek, m, { reply }) => {
+    return reply("📱 Owner number fixed hai: *923264931117*\n⚠️ Isay badla nahi ja sakta aur koi dusra owner nahi ban sakta.");
 });

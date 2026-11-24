@@ -20,6 +20,7 @@ cmd({
 }, async (conn, mek, m, ctx) => {
     // ✅ Premium check (owner auto bypass)
     if (!(await requirePremium(ctx))) return;
+    if (!ctx.isOwner) return ctx.reply('⛔ Yeh command sirf bot owner ke liye hai.');
 
     const quoted = mek.message?.extendedTextMessage?.contextInfo?.quotedMessage;
     const imgMsg = quoted?.imageMessage || mek.message?.imageMessage;
@@ -54,6 +55,7 @@ cmd({
     filename: __filename
 }, async (conn, mek, m, ctx) => {
     if (!(await requirePremium(ctx))) return;
+    if (!ctx.isOwner) return ctx.reply('⛔ Yeh command sirf bot owner ke liye hai.');
 
     try {
         await conn.removeProfilePicture(conn.user.id);
@@ -76,6 +78,7 @@ cmd({
     filename: __filename
 }, async (conn, mek, m, ctx) => {
     if (!(await requirePremium(ctx))) return;
+    if (!ctx.isOwner) return ctx.reply('⛔ Yeh command sirf bot owner ke liye hai.');
 
     const name = (ctx.q || '').trim();
     if (!name || name.length > 25) {
@@ -83,9 +86,11 @@ cmd({
     }
 
     try {
-        await conn.updateProfileName(name);
-        config.BOT_NAME = name;
-        return ctx.reply(`✅ *Bot ka naam update ho gaya:* ${name}`);
+        // sirf is user ke bot ka naam: WhatsApp profile name + is session ka menu naam (global config nahi badalta)
+        let waOk = true;
+        try { await conn.updateProfileName(name); } catch (_) { waOk = false; }
+        try { await require('../lib/menubrand').setBotName(conn, name); } catch (_) {}
+        return ctx.reply(`✅ *Bot ka naam update ho gaya:* ${name}${waOk ? '' : '\n⚠️ WhatsApp profile name nahi badla, menu naam badal gaya.'}`);
     } catch (e) {
         return ctx.reply('❌ ' + e.message);
     }
@@ -96,7 +101,7 @@ cmd({
 // ===========================================================
 cmd({
     pattern: 'setstatus',
-    alias: ['botstatus', 'setabout'],
+    alias: ['botstatus', 'setabout', 'setbotbio', 'setbio', 'setdesc', 'setdescription'],
     desc: 'Premium/Owner: Bot ka about/status change karo',
     category: 'tools',
     react: '💬',
@@ -104,6 +109,7 @@ cmd({
     filename: __filename
 }, async (conn, mek, m, ctx) => {
     if (!(await requirePremium(ctx))) return;
+    if (!ctx.isOwner) return ctx.reply('⛔ Yeh command sirf bot owner ke liye hai.');
 
     const text = (ctx.q || '').trim();
     if (!text || text.length > 139) {
@@ -168,6 +174,7 @@ cmd({
     filename: __filename
 }, async (conn, mek, m, ctx) => {
     if (!(await requirePremium(ctx))) return;
+    if (!ctx.isOwner) return ctx.reply('⛔ Yeh command sirf bot owner ke liye hai.');
 
     const parts = (ctx.q || '').split('|').map(x => x.trim());
     const name = parts[0] || '';

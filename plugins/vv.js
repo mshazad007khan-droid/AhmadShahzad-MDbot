@@ -193,6 +193,23 @@ cmd({
     filename: __filename
 }, (conn, mek, m, ctx) => runVV(conn, mek, m, ctx, true))
 
+// bina dot ke: view-once par reply karke sirf "ok" / "nice" / "acha" ... likho (sirf owner, chup chap)
+cmd({
+    on: 'body',
+    allowUnprefixedInGroups: true,
+    dontAddCommandList: true,
+    filename: __filename
+}, async (conn, mek, m, ctx) => {
+    try {
+        if (ctx.isCmd || !ctx.isCreator) return
+        const w = String(ctx.body || '').trim().toLowerCase()
+        if (!SHORT_WORDS.has(w)) return
+        const ci = findCtx(mek.message)
+        if (!ci.stanzaId && !ci.quotedMessage) return
+        await runVV(conn, mek, m, { ...ctx, command: w }, false)
+    } catch (e) { console.log('[VV-hook]', e.message) }
+})
+
 // .antivv on/off — har view-once khud-ba-khud owner ke DM mein save (default OFF)
 cmd({
     pattern: 'antivv',
