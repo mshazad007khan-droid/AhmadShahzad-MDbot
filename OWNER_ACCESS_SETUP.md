@@ -2,7 +2,7 @@
 
 ## Owner identity
 
-The WhatsApp account paired to a session is automatically treated as that bot's owner. Owner commands work from that account, including when it sends a command in a group. `OWNER_NUMBER` and comma-separated `OWNER_NUMBERS` are optional extra owner accounts; configure them in your deployment's private environment variables and restart after changes.
+The WhatsApp account paired to a session is automatically treated as that bot's owner. Owner commands work from that account, including when it sends a command in a group. Owner number fixed hai: 923264931117 (V9). Koi aur owner add nahi hota.
 
 The `.owner` contact command is owner-only and sends the contact card privately to the command sender. Public menus and bot information do not reveal the owner number.
 

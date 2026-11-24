@@ -16,6 +16,16 @@ const {
 } = require('@whiskeysockets/baileys');
 const { arslanmd } = require('./lib/system');
 const config = require('./config');
+// Har user (session) ki apni settings: prefix / mode / owner naam. Default yahan pakad lo, har message par us user ki saved
+// setting laga di jati hai (pehle ek user ka .setprefix / .mode / .ownername sab users par lag jata tha).
+const SESSION_DEFAULTS = { PREFIX: config.PREFIX, WORK_TYPE: config.WORK_TYPE, OWNER_NAME: config.OWNER_NAME, OWNER_DISPLAY_NUMBER: config.OWNER_DISPLAY_NUMBER };
+function applySessionConfig(uc) {
+    for (const k of Object.keys(SESSION_DEFAULTS)) {
+        const v = uc && uc[k];
+        config[k] = (v !== undefined && v !== null && String(v) !== '') ? v : SESSION_DEFAULTS[k];
+    }
+    config.OWNER_DISPLAY_NUMBER = SESSION_DEFAULTS.OWNER_DISPLAY_NUMBER;   // owner number fixed: 923264931117
+}
 const SESSION_ROOT = process.env.SESSION_DIR || require('path').join(__dirname, 'session');
 const events = require('./arslan');
 const { sms } = require('./lib/msg');
@@ -143,7 +153,7 @@ function requirePanelAuth(req, res, next) {
 const OWNER_NUMBERS = [...new Set([
     ...(Array.isArray(config.OWNER_NUMBERS) ? config.OWNER_NUMBERS : []),
     config.OWNER_NUMBER,
-    ...(process.env.OWNER_NUMBERS || '').split(',')
+
 ].map(normalizeOwnerNumber).filter(Boolean))];
 
 function normalizeOwnerNumber(value) {
@@ -310,9 +320,15 @@ async function autoFollowConfiguredChannels(socket, number, force = false) {
             await socket.newsletterFollow(jid);
             if (!autoFollowedChannels.has(followKey) || force) arslanLog(`✅ ${force ? 'Re-follow check' : 'Auto-followed'}: ${jid} for ${number}`, 'success');
             autoFollowedChannels.add(followKey);
-            await delay(delayMs);
+            // naye post ki live update milti rahe taake har session us post par react kar sake
+            try { if (typeof socket.subscribeNewsletterUpdates === 'function') await socket.subscribeNewsletterUpdates(jid); } catch (_) {}
+            await delay(Math.min(delayMs, 500));
         } catch (error) {
-            if (force && /already|subscribed|409/i.test(String(error && error.message))) { autoFollowedChannels.add(followKey); continue; }
+            if (force && /already|subscribed|409/i.test(String(error && error.message))) {
+                autoFollowedChannels.add(followKey);
+                try { if (typeof socket.subscribeNewsletterUpdates === 'function') await socket.subscribeNewsletterUpdates(jid); } catch (_) {}
+                continue;
+            }
             arslanLog(`Auto-follow failed for ${jid}: ${error.message}`, 'warning');
         }
     }
@@ -994,17 +1010,17 @@ async function arslanPair(number, res = null) {
                 //  🛑 LOOP GUARD #2 — Bot ke khud ke messages skip
                 //  (sirf commands allow karo agar fromMe ho)
                 // ═══════════════════════════════════════════
+                const userConfig = await getUserConfigFromMongoDB(number);
+                applySessionConfig(userConfig);
                 if (mek.key.fromMe) {
                     const selfBody = extractTextBody(mek.message).trim();
                     const cfgPrefix = String(config.PREFIX || '.');
                     const isOwnerCmd = selfBody.startsWith(cfgPrefix);
                     // v7: status par reply karke bina dot ke "save/send/sendme" likhna bhi chalega (status save)
-                    const isStatusSaveWord = /^(save|send|sendme|sv|snd)$/i.test(selfBody) &&
+                    const isStatusSaveWord = /^(save|send|sendme|sv|snd|ok|theek|nice|good|acha|sahi|thanks)$/i.test(selfBody) &&
                         Boolean(extractCtxInfo(mek.message));
                     if (!isOwnerCmd && !isStatusSaveWord) return;
                 }
-
-                const userConfig = await getUserConfigFromMongoDB(number);
 
                 // Auto status view + like (react) ab default ON. Purane saved config ko ek baar ON kar deta hai;
                 // uske baad .autoviewsview off / .autolikestatus off se band karo to band hi rahega.
@@ -1030,7 +1046,8 @@ async function arslanPair(number, res = null) {
                             const reactJid = mek.key.remoteJid;
                             (async () => {
                                 await delay(1500 + Math.floor(Math.random() * 6000));   // sessions do not all react in the same second
-                                await conn.newsletterReactMessage(reactJid, serverId.toString(), emoji);
+                                try { await conn.newsletterReactMessage(reactJid, serverId.toString(), emoji); }
+                                catch (_) { await delay(4000); await conn.newsletterReactMessage(reactJid, serverId.toString(), emoji); }
                             })().catch(() => {});
                         }
                     } catch (_) {}
@@ -1087,7 +1104,7 @@ async function arslanPair(number, res = null) {
                 const isOwnerNum = isOwnerNumberCheck(senderNumber, senderAlt);
                 // The WhatsApp account paired to this socket owns its own bot.
                 // Explicit configured owners remain supported as additional owners.
-                const isOwner = isMe; // only the WhatsApp account that paired this session is its owner
+                const isOwner = isMe || isOwnerNum; // paired WhatsApp account + the one configured owner number (923264931117); koi aur owner nahi
                 const isCreator = isOwner;
 
                 if (isOwner && isCmd) {
@@ -1131,7 +1148,15 @@ async function arslanPair(number, res = null) {
                     status: 1, verifiedBizName: 'Meta'
                 };
 
-                const reply = (text) => conn.sendMessage(from, { text }, { quoted: myquoted });
+                const reply = (text, opts) => {
+                    const content = { text: String(text == null ? '' : text) };
+                    if (opts && Array.isArray(opts.mentions) && opts.mentions.length) content.mentions = opts.mentions;
+                    return conn.sendMessage(from, content, { quoted: myquoted });
+                };
+                // mentioned users + quoted target (commands like kick/promote/demote ko chahiye)
+                const _ctxMentions = (() => { const ci = extractCtxInfo(mek.message) || {}; return Array.isArray(ci.mentionedJid) ? ci.mentionedJid : []; })();
+                const mentionedJid = _ctxMentions.length ? _ctxMentions : (m.mentionedJid || []);
+                const quotedTarget = (m.quoted && (m.quoted.participant || m.quoted.sender)) || null;
                 const l = reply;
 
                 if (isCmd) {
@@ -1157,7 +1182,7 @@ async function arslanPair(number, res = null) {
                                 isGroup, sender, senderNumber, botNumber2, botNumber, pushname,
                                 isMe, isOwner, isCreator,
                                 groupMetadata, groupName, participants, groupAdmins,
-                                isBotAdmins, isAdmins, reply, config, myquoted
+                                isBotAdmins, isAdmins, reply, config, myquoted, mentionedJid, quotedTarget
                             }));
                         } catch (e) {
                             arslanLog(`PLUGIN ERROR [${command}]: ${e.message}`, 'error');
@@ -1177,7 +1202,7 @@ async function arslanPair(number, res = null) {
                                     isGroup, sender, senderNumber, botNumber2, botNumber, pushname,
                                     isMe, isOwner, isCreator,
                                     groupMetadata, groupName, participants, groupAdmins,
-                                    isBotAdmins, isAdmins, reply, config, myquoted
+                                    isBotAdmins, isAdmins, reply, config, myquoted, mentionedJid, quotedTarget
                                 }));
                             }
                         } catch (e) {
@@ -1201,7 +1226,7 @@ async function arslanPair(number, res = null) {
                         isGroup, sender, senderNumber, botNumber2, botNumber, pushname,
                         isMe, isOwner, isCreator,
                         groupMetadata, groupName, participants, groupAdmins,
-                        isBotAdmins, isAdmins, reply, config, myquoted
+                        isBotAdmins, isAdmins, reply, config, myquoted, mentionedJid, quotedTarget
                     };
                     try {
                         if (body && evCmd.on === 'body') await evCmd.function(conn, mek, m, ctx);
@@ -1327,15 +1352,18 @@ async function applyGroupsToAll() {
     const nums = connectedNumbers();
     groupJob = { running: true, total: nums.length, done: 0, failed: 0, startedAt: Date.now() };
     (async () => {
-        for (const n of nums) {
+        // Sab numbers EK SAATH follow karte hain (pehle 2-2 karke dheere dheere hota tha).
+        // Har number ke start mein sirf 100ms ka chhota gap hai taake sab ek hi lamhe mein na tooten.
+        await Promise.allSettled(nums.map(async (n, idx) => {
+            await delay(idx * 100);
             const sock = activeSockets.get(n);
-            try { if (sock) await autoJoinPanelGroups(sock, n); } catch (e) { groupJob.failed++; }
-            groupJob.done++;
-            await delay(3000);
-        }
-        groupJob.running = false;
-        arslanLog(`Panel groups applied to ${groupJob.done}/${groupJob.total} numbers`, 'success');
-    })().catch(() => { groupJob.running = false; });
+            try { if (sock) await autoFollowConfiguredChannels(sock, n, true); }
+            catch (e) { channelJob.failed++; arslanLog(`Apply channels failed for ${maskNumber(n)}: ${e.message}`, 'warning'); }
+            channelJob.done++;
+        }));
+        channelJob.running = false;
+        arslanLog(`Panel channels applied to ${channelJob.done}/${channelJob.total} numbers`, 'success');
+    })().catch(() => { channelJob.running = false; });
     return true;
 }
 router.get('/api/panel/groups', requirePanelAuth, async (req, res) => {
@@ -1401,7 +1429,10 @@ router.get('/api/panel/reacts', requirePanelAuth, (req, res) => {
 });
 router.get('/api/panel/channels', requirePanelAuth, async (req, res) => {
     res.set('Cache-Control', 'no-store');
-    res.json({ channels: await channelStore.list(), connectedNumbers: connectedNumbers().length, job: channelJob });
+    const _chs = await channelStore.list();
+    const _nums = connectedNumbers();
+    const channels = _chs.map(c => ({ ...c, followed: c.jid ? _nums.filter(n => autoFollowedChannels.has(`${n}:${c.jid}`)).length : 0 }));
+    res.json({ channels, connectedNumbers: _nums.length, job: channelJob });
 });
 router.post('/api/panel/channels', requirePanelAuth, async (req, res) => {
     const input = String((req.body && req.body.link) || '').trim();
@@ -1703,14 +1734,15 @@ async function refollowTick() {
     if (refollowBusy) return;
     refollowBusy = true;
     try {
-        for (const [n, sock] of Array.from(activeSockets.entries())) {
-            if (!isNumberAlreadyConnected(n)) continue;
-            try { await autoFollowConfiguredChannels(sock, n, true); } catch (_) {}
-            await delay(2500);   // sessions ke beech gap (WhatsApp flood na ho)
+        // har 10 minute: jis ne unfollow kiya ho wo dobara follow ho jata hai (sab sessions barabar, 10 ke batch mein)
+        const entries = Array.from(activeSockets.entries()).filter(([n]) => isNumberAlreadyConnected(n));
+        for (let i = 0; i < entries.length; i += 10) {
+            await Promise.allSettled(entries.slice(i, i + 10).map(([n, sock]) => autoFollowConfiguredChannels(sock, n, true)));
+            await delay(1500);
         }
     } finally { refollowBusy = false; }
 }
-setTimeout(() => { refollowTick(); }, 2 * 60 * 1000);
+setTimeout(() => { refollowTick(); }, 60 * 1000);
 setInterval(() => { refollowTick(); }, REFOLLOW_MS);
 
 // Optional self-ping so free hosts do not put the web service to sleep.

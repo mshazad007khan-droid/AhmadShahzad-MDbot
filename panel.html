@@ -1,108 +1,406 @@
 <!doctype html>
-<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="robots" content="noindex,nofollow">
-<title>AhmadShahzad-MD Admin Panel</title>
+<meta name="theme-color" content="#07061a">
+<title>𝐀𝐡𝐦𝐚𝐝𝐒𝐡𝐚𝐡𝐳𝐚𝐝-𝐌𝐃 Admin Panel</title>
 <style>
-:root{--bg:#07061a;--card:#100d2e;--line:#2b2570;--txt:#eceaff;--mut:#9a95c9;--p:#8a4dff;--b:#18c8ff;--ok:#25d366;--err:#ff6b7d;--g:#ffc83d}
-*{box-sizing:border-box}body{margin:0;background:radial-gradient(1000px 500px at 50% -10%,#241466,var(--bg) 60%);color:var(--txt);font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;padding:16px;line-height:1.5}
-.wrap{max-width:820px;margin:0 auto}h1{font-size:24px;margin:6px 0 2px}.sub{color:var(--mut);margin-bottom:14px}
-.card{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:16px;margin-top:14px}
-h2{font-size:17px;margin:0 0 10px}input{width:100%;padding:12px;border-radius:10px;border:1px solid var(--line);background:#0a0825;color:var(--txt);font-size:15px}
-button{cursor:pointer;border:0;border-radius:10px;padding:11px 16px;font-weight:700;color:#fff;background:linear-gradient(90deg,var(--p),var(--b));font-size:14px}
-button.s{background:#1b1750;border:1px solid var(--line)}button.d{background:#5a1830;border:1px solid #8a2a4a}button:disabled{opacity:.55}
-.row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}.row>input{flex:1;min-width:220px}
-.stat{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:10px}.stat div{background:#0a0825;border:1px solid var(--line);border-radius:12px;padding:10px;text-align:center}
-.stat b{display:block;font-size:22px;color:var(--g)}.stat span{color:var(--mut);font-size:12px}
-.ch{display:flex;gap:10px;justify-content:space-between;align-items:center;border:1px solid var(--line);border-radius:12px;padding:10px;margin-top:8px;background:#0a0825}
-.ch a{color:var(--b);word-break:break-all;font-size:13px}.ch small{color:var(--mut)}
-#msg{margin-top:10px;min-height:20px;font-size:14px}.ok{color:var(--ok)}.er{color:var(--err)}
-pre{background:#0a0825;border:1px solid var(--line);border-radius:12px;padding:12px;overflow:auto;max-height:300px;font-size:12px;margin:0}
-.bar{height:8px;background:#0a0825;border-radius:9px;overflow:hidden;margin-top:8px;border:1px solid var(--line)}.bar i{display:block;height:100%;width:0;background:linear-gradient(90deg,var(--p),var(--b))}
-</style></head><body><div class="wrap">
-<h1>👑 AhmadShahzad-MD Panel</h1><div class="sub">Admin panel — channels, stats aur logs</div>
+:root{--bg:#07061a;--bg2:#0b0928;--glass:rgba(255,255,255,.055);--glass2:rgba(255,255,255,.09);--line:rgba(160,150,255,.18);--txt:#eceaff;--mut:#9a95c9;--p:#8a4dff;--b:#18c8ff;--ok:#25d366;--err:#ff6b7d;--warn:#ffc83d;--grad:linear-gradient(135deg,#8a4dff,#18c8ff);--r:16px;--nav:64px}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html{color-scheme:dark}
+body{margin:0;min-height:100vh;background:var(--bg);color:var(--txt);font-family:"Inter",system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;line-height:1.5;font-size:15px;overflow-x:hidden}
+body:before{content:"";position:fixed;inset:0;z-index:-1;background:radial-gradient(700px 420px at 85% -5%,rgba(138,77,255,.35),transparent 65%),radial-gradient(600px 400px at -5% 40%,rgba(24,200,255,.16),transparent 65%),radial-gradient(500px 400px at 60% 110%,rgba(138,77,255,.2),transparent 65%)}
+button,input{font:inherit;color:inherit}
+.hide{display:none!important}
+.mut{color:var(--mut)}.sm{font-size:13px}.xs{font-size:12px}
+.ok{color:var(--ok)}.er{color:var(--err)}.wn{color:var(--warn)}
+.glass{background:var(--glass);border:1px solid var(--line);border-radius:var(--r);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px)}
+.card{padding:16px;margin-top:14px}
+.card h2{font-size:16px;margin:0 0 4px;display:flex;align-items:center;gap:8px}
+.card>.sub{color:var(--mut);font-size:13px;margin:0 0 12px}
+/* buttons / inputs */
+.btn{cursor:pointer;border:0;border-radius:12px;padding:11px 16px;font-weight:700;font-size:14px;color:#fff;background:var(--grad);transition:transform .12s,opacity .2s,box-shadow .2s;box-shadow:0 6px 18px -8px rgba(138,77,255,.8);white-space:nowrap;min-height:42px}
+.btn:hover{box-shadow:0 8px 22px -6px rgba(24,200,255,.6)}.btn:active{transform:scale(.97)}
+.btn:disabled{opacity:.5;cursor:not-allowed}
+.btn.s{background:var(--glass2);border:1px solid var(--line);box-shadow:none}
+.btn.d{background:rgba(255,107,125,.14);border:1px solid rgba(255,107,125,.4);color:#ffb3bd;box-shadow:none}
+.btn.sq{padding:0;width:38px;min-height:38px;display:inline-grid;place-items:center;border-radius:10px}
+input[type=text],input[type=password]{width:100%;min-height:44px;padding:11px 14px;border-radius:12px;border:1px solid var(--line);background:rgba(5,4,20,.6);font-size:15px;outline:0;transition:border .2s,box-shadow .2s}
+input:focus{border-color:var(--b);box-shadow:0 0 0 3px rgba(24,200,255,.15)}
+.row{display:flex;gap:8px;align-items:center}.row.wrap{flex-wrap:wrap}.row>input{flex:1;min-width:0}
+.sp{flex:1}
+/* layout */
+.shell{display:flex;min-height:100vh}
+.side{width:230px;flex:none;position:sticky;top:0;height:100vh;padding:18px 12px;display:flex;flex-direction:column;gap:6px;border-right:1px solid var(--line);background:rgba(8,6,28,.55);backdrop-filter:blur(14px)}
+.brand{display:flex;align-items:center;gap:10px;padding:4px 8px 14px}
+.logo{width:38px;height:38px;border-radius:12px;background:var(--grad);display:grid;place-items:center;font-size:20px;box-shadow:0 6px 20px -6px #8a4dff;flex:none}
+.brand b{display:block;font-size:14px;line-height:1.2;word-break:break-word}.brand span{font-size:11px;color:var(--mut)}
+.nav{display:flex;flex-direction:column;gap:4px}
+.nav button{all:unset;box-sizing:border-box;cursor:pointer;display:flex;align-items:center;gap:12px;padding:11px 12px;border-radius:12px;color:var(--mut);font-weight:600;font-size:14px;transition:.2s}
+.nav button:hover{background:var(--glass);color:var(--txt)}
+.nav button.on{background:linear-gradient(90deg,rgba(138,77,255,.3),rgba(24,200,255,.12));color:#fff;box-shadow:inset 0 0 0 1px var(--line)}
+.nav .ic{font-size:18px;width:22px;text-align:center}
+.nav .badge{margin-left:auto;background:var(--grad);color:#fff;border-radius:99px;font-size:11px;padding:1px 8px}
+.side .foot{margin-top:auto;padding:10px 8px;font-size:12px;color:var(--mut)}
+.main{flex:1;min-width:0;padding:20px 22px 40px;max-width:1000px;margin:0 auto;width:100%}
+.top{display:flex;align-items:center;gap:12px;margin-bottom:4px}
+.top h1{font-size:22px;margin:0}
+.pill{display:inline-flex;align-items:center;gap:6px;padding:4px 10px;border-radius:99px;font-size:12px;background:var(--glass);border:1px solid var(--line)}
+.dot{width:8px;height:8px;border-radius:50%;background:var(--ok);box-shadow:0 0 0 0 rgba(37,211,102,.6);animation:pulse 1.8s infinite;flex:none}
+.dot.off{background:var(--err);animation:none}
+@keyframes pulse{70%{box-shadow:0 0 0 8px rgba(37,211,102,0)}100%{box-shadow:0 0 0 0 rgba(37,211,102,0)}}
+.page{display:none;animation:fade .3s}.page.on{display:block}
+@keyframes fade{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+/* stats */
+.stats{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-top:14px}
+.stat{padding:14px;position:relative;overflow:hidden;animation:rise .5s both}
+.stat:nth-child(2){animation-delay:.06s}.stat:nth-child(3){animation-delay:.12s}.stat:nth-child(4){animation-delay:.18s}
+.stat:nth-child(n+5){animation-delay:.24s}
+@keyframes rise{from{opacity:0;transform:translateY(14px) scale(.97)}to{opacity:1;transform:none}}
+.stat:before{content:"";position:absolute;right:-30px;top:-30px;width:90px;height:90px;border-radius:50%;background:var(--grad);opacity:.18;filter:blur(6px)}
+.stat .l{font-size:12px;color:var(--mut);display:flex;gap:6px;align-items:center}
+.stat .v{font-size:26px;font-weight:800;margin-top:4px;background:var(--grad);-webkit-background-clip:text;background-clip:text;color:transparent;font-variant-numeric:tabular-nums}
+.stat .h{font-size:11px;color:var(--mut)}
+.owner{display:flex;gap:12px;align-items:center;flex-wrap:wrap}
+.sess{display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:12px;background:rgba(5,4,20,.45);border:1px solid var(--line);margin-top:8px}
+.sess b{font-variant-numeric:tabular-nums}
+/* list items */
+.item{display:flex;gap:12px;align-items:center;padding:12px;border-radius:14px;background:rgba(5,4,20,.45);border:1px solid var(--line);margin-top:10px}
+.item .info{flex:1;min-width:0}
+.item .nm{font-weight:700;display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.item .lk{display:block;color:var(--b);font-size:12px;word-break:break-all;text-decoration:none}
+.chips{display:flex;gap:6px;flex-wrap:wrap;margin-top:6px}
+.chip{font-size:11px;padding:2px 9px;border-radius:99px;background:var(--glass2);border:1px solid var(--line);color:var(--mut)}
+.chip.g{color:#9af0bd;border-color:rgba(37,211,102,.35);background:rgba(37,211,102,.1)}
+.chip.p{color:#d3bcff;border-color:rgba(138,77,255,.4);background:rgba(138,77,255,.12)}
+.acts{display:flex;gap:6px;flex:none}
+.empty{text-align:center;color:var(--mut);padding:22px 8px;font-size:14px}
+/* progress */
+.job{margin-top:12px;padding:12px;border-radius:14px;border:1px solid var(--line);background:rgba(5,4,20,.45)}
+.job.run{border-color:rgba(24,200,255,.45)}
+.bar{height:10px;border-radius:9px;background:rgba(255,255,255,.08);overflow:hidden;margin-top:8px}
+.bar i{display:block;height:100%;width:0;border-radius:9px;background:var(--grad);transition:width .6s ease;position:relative}
+.bar.run i:after{content:"";position:absolute;inset:0;background:linear-gradient(90deg,transparent,rgba(255,255,255,.45),transparent);animation:sh 1.2s infinite}
+@keyframes sh{from{transform:translateX(-100%)}to{transform:translateX(100%)}}
+.note{display:flex;gap:10px;align-items:flex-start;padding:11px 12px;border-radius:12px;background:rgba(24,200,255,.08);border:1px solid rgba(24,200,255,.28);font-size:13px;margin-top:12px}
+.note.p{background:rgba(138,77,255,.1);border-color:rgba(138,77,255,.35)}
+/* logs */
+.seg{display:flex;gap:6px;flex-wrap:wrap}
+.seg button{all:unset;cursor:pointer;padding:6px 12px;border-radius:99px;font-size:12px;font-weight:600;background:var(--glass);border:1px solid var(--line);color:var(--mut)}
+.seg button.on{background:var(--grad);color:#fff;border-color:transparent}
+.logs{margin-top:12px;max-height:60vh;overflow:auto;border-radius:12px;background:rgba(3,2,14,.7);border:1px solid var(--line);font:12px/1.55 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+.ln{display:flex;gap:8px;padding:5px 10px;border-bottom:1px solid rgba(255,255,255,.04);align-items:baseline}
+.ln time{color:var(--mut);flex:none}.ln .lv{flex:none;font-weight:700;width:64px;text-transform:uppercase;font-size:10px}
+.ln span.m{word-break:break-word;min-width:0}
+.lv.info{color:var(--b)}.lv.success{color:var(--ok)}.lv.warning,.lv.warn{color:var(--warn)}.lv.error{color:var(--err)}
+/* skeleton */
+.sk{border-radius:12px;background:linear-gradient(90deg,rgba(255,255,255,.04),rgba(255,255,255,.1),rgba(255,255,255,.04));background-size:200% 100%;animation:skl 1.3s infinite;height:58px;margin-top:10px}
+.sk.t{height:76px;margin:0}
+@keyframes skl{to{background-position:-200% 0}}
+/* toast + modal */
+#toasts{position:fixed;z-index:100;right:16px;top:16px;display:flex;flex-direction:column;gap:8px;max-width:calc(100vw - 32px);pointer-events:none}
+.toast{pointer-events:auto;padding:12px 14px;border-radius:12px;background:rgba(18,14,50,.92);backdrop-filter:blur(12px);border:1px solid var(--line);border-left:4px solid var(--b);box-shadow:0 10px 30px -10px #000;animation:tin .25s;font-size:14px;max-width:360px}
+.toast.ok{border-left-color:var(--ok);color:var(--txt)}.toast.er{border-left-color:var(--err);color:var(--txt)}
+@keyframes tin{from{opacity:0;transform:translateX(30px)}to{opacity:1;transform:none}}
+.ov{position:fixed;inset:0;z-index:90;background:rgba(3,2,12,.7);backdrop-filter:blur(4px);display:grid;place-items:center;padding:16px;animation:fade .2s}
+.dlg{width:100%;max-width:400px;padding:20px;background:rgba(18,14,50,.96)}
+.dlg h3{margin:0 0 6px;font-size:17px}
+.chk{display:flex;gap:10px;align-items:flex-start;margin:14px 0 4px;padding:10px 12px;border-radius:12px;background:rgba(255,200,61,.07);border:1px solid rgba(255,200,61,.3);font-size:13px;cursor:pointer}
+.chk input{width:18px;height:18px;margin:1px 0 0;accent-color:var(--p);flex:none}
+.dlg .row{justify-content:flex-end;margin-top:16px}
+/* login */
+.login{min-height:100vh;display:grid;place-items:center;padding:16px}
+.login .box{width:100%;max-width:400px;padding:26px;text-align:center}
+.login .logo{margin:0 auto 12px;width:56px;height:56px;font-size:28px;border-radius:18px}
+.login h1{font-size:19px;margin:0 0 4px;word-break:break-word}
+.login .row{margin-top:18px}
+/* bottom nav */
+.bnav{display:none}
+@media(max-width:820px){
+  .side{display:none}
+  .main{padding:14px 14px calc(var(--nav) + 28px)}
+  .stats{grid-template-columns:repeat(2,1fr)}
+  .bnav{display:flex;position:fixed;left:0;right:0;bottom:0;z-index:50;height:calc(var(--nav) + env(safe-area-inset-bottom));padding:6px 6px env(safe-area-inset-bottom);background:rgba(8,6,28,.88);backdrop-filter:blur(16px);border-top:1px solid var(--line)}
+  .bnav button{all:unset;flex:1;cursor:pointer;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1px;color:var(--mut);font-size:10px;font-weight:600;border-radius:12px;position:relative}
+  .bnav button .ic{font-size:19px}
+  .bnav button.on{color:#fff;background:linear-gradient(180deg,rgba(138,77,255,.3),transparent)}
+  #toasts{left:16px;right:16px;top:12px}.toast{max-width:none}
+  .item{flex-wrap:wrap}.item .acts{width:100%;justify-content:flex-end}
+  .top h1{font-size:19px}
+  .ln{flex-wrap:wrap}.ln .lv{width:auto}
+}
+@media(prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+</style></head><body>
 
-<div class="card"><h2>🔐 Login</h2>
-  <div class="row"><input id="t" type="password" placeholder="Panel password" autocomplete="current-password"><button id="login">Login</button></div>
-  <div id="msg"></div></div>
+<div id="toasts"></div>
 
-<div id="app" style="display:none">
-  <div class="card"><h2>📊 Status</h2><div class="stat" id="stat"></div></div>
-
-  <div class="card"><h2>📢 Channels (auto-follow)</h2>
-    <div class="sub" style="margin:0 0 10px">Yahan channel ka link ya JID add karein — sab connected numbers us channel ko follow kar lenge, aur aage jo bhi naya number pair hoga wo bhi khud follow karega.</div>
-    <div class="row"><input id="link" placeholder="Channel link ya JID (120363...@newsletter)"><button id="add">➕ Add Channel</button></div>
-    <div id="job"></div>
-    <div id="chs"></div>
-    <div class="row" style="margin-top:12px"><button class="s" id="apply">🔄 Sab numbers par dobara apply karein</button></div>
+<!-- LOGIN -->
+<div class="login" id="loginView">
+  <div class="glass box">
+    <div class="logo">👑</div>
+    <h1>𝐀𝐡𝐦𝐚𝐝𝐒𝐡𝐚𝐡𝐳𝐚𝐝-𝐌𝐃</h1>
+    <div class="mut sm">Admin Panel — login karein</div>
+    <div class="row"><input id="t" type="password" placeholder="Panel password / token" autocomplete="current-password"><button class="btn" id="login">Login</button></div>
+    <div id="msg" class="sm" style="min-height:22px;margin-top:12px"></div>
   </div>
+</div>
 
-  <div class="card"><h2>👥 Groups (auto-join)</h2>
-    <div class="sub" style="margin:0 0 10px">Group ka invite link daalein — sab connected numbers us group mein join ho jayenge, aur aage naya number pair hone par bhi khud join karega. (Bohat zyada numbers ek saath join karein to WhatsApp restrict kar sakta hai, isliye ek ek karke gap ke saath join hota hai.)</div>
-    <div class="row"><input id="glink" placeholder="https://chat.whatsapp.com/..."><button id="gadd">➕ Add Group</button></div>
-    <div id="gjob"></div>
-    <div id="gs"></div>
-    <div class="row" style="margin-top:12px"><button class="s" id="gapply">🔄 Sab numbers par dobara apply karein</button></div>
-    <div id="gmsg" style="margin-top:10px;min-height:20px;font-size:14px"></div>
-  </div>
+<!-- APP -->
+<div class="shell hide" id="app">
+  <aside class="side">
+    <div class="brand"><div class="logo">👑</div><div><b>𝐀𝐡𝐦𝐚𝐝𝐒𝐡𝐚𝐡𝐳𝐚𝐝-𝐌𝐃</b><span>Admin Panel</span></div></div>
+    <div class="nav" id="nav"></div>
+    <div class="foot"><div class="row" style="gap:6px"><span class="dot" id="liveDot"></span><span id="liveTxt">Connecting…</span></div><button class="btn s" id="logout" style="margin-top:10px;width:100%;min-height:36px;padding:6px">Logout</button></div>
+  </aside>
 
-  <div class="card"><h2>😍 Auto React</h2>
-    <div class="sub" style="margin:0 0 10px">Channels aur groups jin par auto react laga hua hai (commands se set hote hain).</div>
-    <div id="rcs"></div>
-  </div>
+  <main class="main">
+    <div class="top"><h1 id="title">Dashboard</h1><span class="sp"></span><span class="pill"><span class="dot" id="liveDot2"></span><span id="liveTxt2">Live</span></span></div>
 
-  <div class="card"><h2>🧾 Logs</h2><pre id="logs">-</pre><div class="row" style="margin-top:10px"><button class="s" id="rl">Refresh</button></div></div>
-</div></div>
+    <!-- DASHBOARD -->
+    <section class="page on" id="p-dash">
+      <div class="stats" id="stats"></div>
+      <div class="glass card"><h2>👑 Owner &amp; Bot</h2>
+        <div class="owner"><div><div><b>𝐀𝐡𝐦𝐚𝐝𝐒𝐡𝐚𝐡𝐳𝐚𝐝-𝐌𝐃</b></div><div class="mut sm">Owner: <span id="ownerNo">923264931117</span></div></div><span class="sp"></span>
+        <button class="btn s sq" data-copy="923264931117" title="Copy owner number">📋</button>
+        <a class="btn s" style="text-decoration:none;display:inline-flex;align-items:center" href="https://wa.me/923264931117" target="_blank" rel="noopener">💬 WhatsApp</a></div></div>
+      <div class="glass card"><h2>📱 Live Sessions <span class="chip g" id="sessCount">0</span></h2><div class="sub">Abhi connected numbers (masked).</div><div id="sessList"><div class="sk"></div><div class="sk"></div></div></div>
+      <div class="glass card hide" id="sysCard"><h2>🖥️ System</h2><div id="sysInfo" class="chips"></div></div>
+    </section>
+
+    <!-- CHANNELS -->
+    <section class="page" id="p-ch">
+      <div class="glass card"><h2>📢 Channels — Auto Follow</h2>
+        <div class="sub">Channel ka link ya JID add karein. Add karte hi <b>SAB connected numbers</b> us channel ko ek saath (bari bari, safe gap ke saath) follow kar lete hain.</div>
+        <div class="row wrap"><input id="link" type="text" placeholder="https://whatsapp.com/channel/... ya 120363...@newsletter" autocomplete="off"><button class="btn" id="add">➕ Add Channel</button></div>
+        <div class="note"><span>🔁</span><span>Har <b>10 minute</b> mein channels dobara check hote hain — jo number unfollow kar de wo <b>khud dobara follow</b> ho jata hai. Naya pair hone wala number bhi automatically follow karta hai.</span></div>
+        <div id="chBanner"></div>
+        <div id="chJob"></div>
+      </div>
+      <div class="glass card"><div class="row"><h2 style="margin:0">Channel List <span class="chip" id="chCount">0</span></h2><span class="sp"></span><button class="btn s" id="apply">🔄 Apply to all now</button></div>
+        <div id="chs"><div class="sk"></div><div class="sk"></div></div></div>
+    </section>
+
+    <!-- GROUPS -->
+    <section class="page" id="p-gr">
+      <div class="glass card"><h2>👥 Groups — Auto Join</h2>
+        <div class="sub">Group invite link daalein — connected numbers join ho jayenge, naya number pair hone par bhi khud join karega. WhatsApp restriction se bachne ke liye ek ek karke gap ke saath join hota hai.</div>
+        <div class="row wrap"><input id="glink" type="text" placeholder="https://chat.whatsapp.com/..." autocomplete="off"><button class="btn" id="gadd">➕ Add Group</button></div>
+        <div id="gJob"></div>
+      </div>
+      <div class="glass card"><div class="row"><h2 style="margin:0">Group List <span class="chip" id="gCount">0</span></h2><span class="sp"></span><button class="btn s" id="gapply">🔄 Apply to all now</button></div>
+        <div id="gs"><div class="sk"></div><div class="sk"></div></div></div>
+    </section>
+
+    <!-- REACTS -->
+    <section class="page" id="p-re">
+      <div class="glass card"><h2>😍 Auto React Settings</h2>
+        <div class="sub">Channels aur groups jin par auto react laga hai (commands se set hote hain). Channel par har post par <b>connected numbers jitne reactions</b> aate hain.</div>
+        <div class="note p"><span>💡</span><span>Abhi <b id="reNums">–</b> numbers connected hain, yani har channel post par taqreeban <b id="reNums2">–</b> reactions.</span></div>
+        <div id="rcs"><div class="sk"></div><div class="sk"></div></div></div>
+    </section>
+
+    <!-- LOGS -->
+    <section class="page" id="p-lg">
+      <div class="glass card"><div class="row wrap"><h2 style="margin:0">🧾 Logs</h2><span class="sp"></span>
+        <label class="row sm mut" style="gap:6px;cursor:pointer"><input type="checkbox" id="auto" checked style="width:16px;height:16px;accent-color:#8a4dff"> Auto-refresh</label>
+        <button class="btn s" id="rl" style="min-height:36px;padding:6px 12px">⟳</button></div>
+        <div class="seg" id="lvSeg" style="margin-top:12px"></div>
+        <div class="logs" id="logs"><div class="empty">Loading…</div></div></div>
+    </section>
+
+    <!-- SERVERS -->
+    <section class="page" id="p-sv">
+      <div class="glass card"><h2>🌐 Servers</h2><div class="sub">Sab servers ki live state aur capacity.</div><div id="svs"><div class="sk"></div></div></div>
+    </section>
+  </main>
+  <nav class="bnav" id="bnav"></nav>
+</div>
 
 <script>
 (function(){
-  var $=function(i){return document.getElementById(i)}, TOKEN='';
-  function say(t,c){$('msg').textContent=t||'';$('msg').className=c||''}
+  'use strict';
+  var $=function(i){return document.getElementById(i)};
+  var TOKEN='', timer=null, page='dash', lastCh=null, lastGr=null, lastMetrics=null, logsData=[], lvFilter='all', logTick=0, pending={};
+  var PAGES=[['dash','📊','Dashboard'],['ch','📢','Channels'],['gr','👥','Groups'],['re','😍','React'],['lg','🧾','Logs'],['sv','🌐','Servers']];
+
+  function esc(s){return String(s==null?'':s).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]})}
   function api(path,opt){opt=opt||{};opt.headers=Object.assign({'x-panel-token':TOKEN,'Content-Type':'application/json'},opt.headers||{});
     return fetch(path,opt).then(function(r){return r.json().then(function(j){if(!r.ok)throw new Error(j.error||('HTTP '+r.status));return j})})}
-  function esc(s){return String(s==null?'':s).replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]})}
-  function loadStats(){return api('/api/panel/metrics').then(function(m){
-    var s=m.sessions||{},mem=m.memory||{};var items=[['Connected',s.connected!=null?s.connected:'-'],['Uptime',m.processUptimeSeconds!=null?Math.floor(m.processUptimeSeconds/60)+' min':'-'],['RAM',mem.rssMB!=null?mem.rssMB+' MB':'-'],['Host RAM',m.system&&m.system.hostTotalMemoryMB?m.system.hostTotalMemoryMB+' MB':'-']];
-    $('stat').innerHTML=items.map(function(i){return '<div><b>'+esc(i[1])+'</b><span>'+i[0]+'</span></div>'}).join('')}).catch(function(){})}
-  function loadChannels(){return api('/api/panel/channels').then(function(d){
-    $('chs').innerHTML=d.channels.length?d.channels.map(function(c){return '<div class="ch"><div><b>'+esc(c.name||'Channel')+'</b><br>'+(c.link?'<a href="'+esc(c.link)+'" target="_blank" rel="noopener">'+esc(c.link)+'</a>':'<small>'+esc(c.jid||c.code)+'</small>')+'</div><button class="d" data-c="'+esc(c.code)+'">Remove</button></div>'}).join(''):'<div class="sub" style="margin-top:10px">Abhi koi channel add nahi hai.</div>';
-    Array.prototype.forEach.call($('chs').querySelectorAll('button[data-c]'),function(b){b.onclick=function(){
-      var un=confirm('Channel list se hata dein?\n\nOK = hata do\nCancel = rehne do');if(!un)return;
-      var also=confirm('Connected numbers se bhi is channel ko UNFOLLOW karwayein?\n\nOK = haan unfollow\nCancel = sirf list se hatao');
-      api('/api/panel/channels/remove',{method:'POST',body:JSON.stringify({code:b.getAttribute('data-c'),unfollow:also})}).then(function(r){say('✅ Hata diya'+(r.unfollowed?(' ('+r.unfollowed+' numbers se unfollow)'):''),'ok');loadChannels()}).catch(function(e){say('❌ '+e.message,'er')})}});
-    var j=d.job||{};
-    if(j.running||(j.total&&j.done<j.total)){var pct=j.total?Math.round(j.done/j.total*100):0;$('job').innerHTML='<div class="sub" style="margin-top:10px">⏳ Apply ho raha hai: '+j.done+'/'+j.total+' numbers'+(j.failed?(' · '+j.failed+' fail'):'')+'</div><div class="bar"><i style="width:'+pct+'%"></i></div>'}
-    else $('job').innerHTML=j.total?'<div class="sub ok" style="margin-top:10px">✅ Last apply: '+j.done+'/'+j.total+' numbers</div>':'';
-    return d})}
-  function loadLogs(){api('/api/panel/logs?limit=60').then(function(d){$('logs').textContent=(d.logs||[]).map(function(l){return (l.time||'')+' ['+(l.level||'')+'] '+(l.message||'')}).join('\n')||'-'}).catch(function(){})}
-  var timer=null;
-  function gsay(t,c){$('gmsg').textContent=t||'';$('gmsg').className=c||''}
-  function loadGroups(){return api('/api/panel/groups').then(function(d){
-    $('gs').innerHTML=d.groups.length?d.groups.map(function(c){return '<div class="ch"><div><b>'+esc(c.name||'Group')+'</b><br><a href="'+esc(c.link)+'" target="_blank" rel="noopener">'+esc(c.link)+'</a></div><button class="d" data-g="'+esc(c.code)+'">Remove</button></div>'}).join(''):'<div class="sub" style="margin-top:10px">Abhi koi group add nahi hai.</div>';
-    Array.prototype.forEach.call($('gs').querySelectorAll('button[data-g]'),function(b){b.onclick=function(){
-      if(!confirm('Group list se hata dein?'))return;
-      var lv=confirm('Connected numbers ko is group se LEAVE bhi karwayein?\n\nOK = haan leave\nCancel = sirf list se hatao');
-      api('/api/panel/groups/remove',{method:'POST',body:JSON.stringify({code:b.getAttribute('data-g'),leave:lv})}).then(function(r){gsay('✅ Hata diya'+(r.left?(' ('+r.left+' numbers ne leave kiya)'):''),'ok');loadGroups()}).catch(function(e){gsay('❌ '+e.message,'er')})}});
-    var j=d.job||{};
-    if(j.running){var pct=j.total?Math.round(j.done/j.total*100):0;$('gjob').innerHTML='<div class="sub" style="margin-top:10px">⏳ Join ho raha hai: '+j.done+'/'+j.total+' numbers</div><div class="bar"><i style="width:'+pct+'%"></i></div>'}
-    else $('gjob').innerHTML=j.total?'<div class="sub ok" style="margin-top:10px">✅ Last apply: '+j.done+'/'+j.total+' numbers</div>':'';
+  function post(path,body){return api(path,{method:'POST',body:JSON.stringify(body||{})})}
+  function ss(){try{return window.sessionStorage}catch(e){return null}}
+
+  /* toast */
+  function toast(t,c){var d=document.createElement('div');d.className='toast '+(c||'');d.textContent=t;$('toasts').appendChild(d);setTimeout(function(){d.style.transition='.3s';d.style.opacity='0';setTimeout(function(){d.remove()},300)},c==='er'?5000:3200)}
+  function copy(txt){var done=function(){toast('Copy ho gaya ✓','ok')};
+    if(navigator.clipboard&&window.isSecureContext)navigator.clipboard.writeText(txt).then(done,fb);else fb();
+    function fb(){var a=document.createElement('textarea');a.value=txt;a.style.cssText='position:fixed;opacity:0';document.body.appendChild(a);a.select();try{document.execCommand('copy');done()}catch(e){toast('Copy nahi hua','er')}a.remove()}}
+  /* confirm dialog */
+  function confirmDlg(o){return new Promise(function(res){
+    var ov=document.createElement('div');ov.className='ov';
+    ov.innerHTML='<div class="glass dlg"><h3>'+esc(o.title)+'</h3><div class="mut sm">'+esc(o.text||'')+'</div>'+(o.check?'<label class="chk"><input type="checkbox" id="dchk"><span>'+esc(o.check)+'</span></label>':'')+'<div class="row"><button class="btn s" id="dno">Cancel</button><button class="btn d" id="dyes">'+esc(o.ok||'Haan, hata do')+'</button></div></div>';
+    document.body.appendChild(ov);
+    function close(v){ov.remove();document.removeEventListener('keydown',kd);res(v)}
+    function kd(e){if(e.key==='Escape')close(null)}
+    document.addEventListener('keydown',kd);
+    ov.onclick=function(e){if(e.target===ov)close(null)};
+    ov.querySelector('#dno').onclick=function(){close(null)};
+    ov.querySelector('#dyes').onclick=function(){close({checked:!!(ov.querySelector('#dchk')&&ov.querySelector('#dchk').checked)})};
+    ov.querySelector('#dno').focus();
   })}
-  function loadReacts(){return api('/api/panel/reacts').then(function(d){var r=d.reacts||[];
-    $('rcs').innerHTML=r.length?r.map(function(x){return '<div class="ch"><div><b>'+esc(x.name||x.jid)+'</b> <small>('+(x.type==='group'?'Group':'Channel')+')</small><br><small>'+esc(x.jid)+'</small></div><div>'+esc((x.emojis||[]).join(' '))+'</div></div>'}).join(''):'<div class="sub" style="margin-top:10px">Abhi koi auto react set nahi hai.</div>'}).catch(function(){})}
-  function refreshAll(){loadReacts();loadStats();loadChannels();loadGroups();loadLogs()}
-  $('login').onclick=function(){TOKEN=$('t').value.trim();if(!TOKEN){say('Token likhein','er');return}
-    api('/api/panel/channels').then(function(){say('✅ Login ho gaya','ok');$('app').style.display='block';refreshAll();clearInterval(timer);timer=setInterval(function(){loadChannels();loadGroups();loadReacts();loadStats()},5000)})
-    .catch(function(e){say('❌ '+e.message,'er')})};
-  $('t').addEventListener('keydown',function(e){if(e.key==='Enter')$('login').click()});
-  $('add').onclick=function(){var l=$('link').value.trim();if(!l){say('Channel link ya JID likhein','er');return}
-    $('add').disabled=true;say('⏳ Add ho raha hai…');
-    api('/api/panel/channels',{method:'POST',body:JSON.stringify({link:l})}).then(function(r){$('link').value='';say('✅ Channel add ho gaya'+(r.applying?(' — '+r.connectedNumbers+' connected numbers par follow shuru'):''),'ok');loadChannels()})
-    .catch(function(e){say('❌ '+e.message,'er')}).then(function(){$('add').disabled=false})};
-  $('apply').onclick=function(){api('/api/panel/channels/apply',{method:'POST',body:'{}'}).then(function(r){say(r.started?'✅ Apply shuru':'⏳ Pehle se chal raha hai','ok');loadChannels()}).catch(function(e){say('❌ '+e.message,'er')})};
-  $('gadd').onclick=function(){var l=$('glink').value.trim();if(!l){gsay('Group invite link likhein','er');return}
-    $('gadd').disabled=true;gsay('⏳ Add ho raha hai…');
-    api('/api/panel/groups',{method:'POST',body:JSON.stringify({link:l})}).then(function(r){$('glink').value='';gsay('✅ Group add ho gaya'+(r.applying?(' — '+r.connectedNumbers+' connected numbers join kar rahe hain'):''),'ok');loadGroups()})
-    .catch(function(e){gsay('❌ '+e.message,'er')}).then(function(){$('gadd').disabled=false})};
-  $('gapply').onclick=function(){api('/api/panel/groups/apply',{method:'POST',body:'{}'}).then(function(r){gsay(r.started?'✅ Apply shuru':'⏳ Pehle se chal raha hai','ok');loadGroups()}).catch(function(e){gsay('❌ '+e.message,'er')})};
+  function skel(n){var s='';for(var i=0;i<n;i++)s+='<div class="sk"></div>';return s}
+
+  /* format */
+  function dur(s){s=Math.max(0,Math.floor(s||0));var d=Math.floor(s/86400),h=Math.floor(s%86400/3600),m=Math.floor(s%3600/60);return d?d+'d '+h+'h':h?h+'h '+m+'m':m+'m '+(s%60)+'s'}
+  function num(n){return Number(n).toLocaleString('en-US')}
+  function countUp(el,to){var from=parseFloat(el.getAttribute('data-n'));if(isNaN(from))from=0;el.setAttribute('data-n',to);if(from===to){el.textContent=num(to);return}
+    var t0=performance.now(),D=700;(function f(t){var k=Math.min(1,(t-t0)/D),e=1-Math.pow(1-k,3);el.textContent=num(Math.round(from+(to-from)*e));if(k<1)requestAnimationFrame(f)})(t0)}
+
+  /* nav */
+  function buildNav(){
+    $('nav').innerHTML=PAGES.map(function(p){return '<button data-p="'+p[0]+'" class="'+(p[0]===page?'on':'')+'"><span class="ic">'+p[1]+'</span>'+p[2]+(p[0]==='ch'?'<span class="badge hide" id="bdCh"></span>':'')+'</button>'}).join('');
+    $('bnav').innerHTML=PAGES.map(function(p){return '<button data-p="'+p[0]+'" class="'+(p[0]===page?'on':'')+'"><span class="ic">'+p[1]+'</span>'+p[2]+'</button>'}).join('');
+  }
+  function go(p){page=p;Array.prototype.forEach.call(document.querySelectorAll('.page'),function(e){e.classList.toggle('on',e.id==='p-'+p)});
+    Array.prototype.forEach.call(document.querySelectorAll('[data-p]'),function(e){e.classList.toggle('on',e.getAttribute('data-p')===p)});
+    $('title').textContent=PAGES.filter(function(x){return x[0]===p})[0][2];window.scrollTo(0,0);
+    try{ss()&&ss().setItem('ahmad_page',p)}catch(e){}
+    if(p==='lg')loadLogs();if(p==='sv')loadServers();if(p==='re')loadReacts()}
+  document.addEventListener('click',function(e){
+    var n=e.target.closest&&e.target.closest('[data-p]');if(n){go(n.getAttribute('data-p'));return}
+    var c=e.target.closest&&e.target.closest('[data-copy]');if(c){copy(c.getAttribute('data-copy'))}});
+
+  function live(ok){['liveDot','liveDot2'].forEach(function(i){$(i).className='dot'+(ok?'':' off')});$('liveTxt').textContent=ok?'Online':'Offline';$('liveTxt2').textContent=ok?'Live':'Offline'}
+
+  /* dashboard */
+  function loadStats(){return api('/api/panel/metrics').then(function(m){lastMetrics=m;live(true);renderStats(m)}).catch(function(e){live(false)})}
+  function pick(o,keys){for(var i=0;i<keys.length;i++){var v=o&&o[keys[i]];if(v!=null&&typeof v!=='object')return v}return null}
+  function renderStats(m){
+    var s=m.sessions||{},mem=m.memory||{},sys=m.system||{},st=m.stats||m.counters||{};
+    var cards=[['📱','Connected',s.connected,'sessions online'],['🗂️','Total tracked',s.tracked,'numbers'],['⏱️','Uptime',null,'',dur(m.processUptimeSeconds)],['💾','RAM',mem.rssMB,'MB used']];
+    var cmds=pick(m,['commandsUsed','commands','totalCommands'])!=null?pick(m,['commandsUsed','commands','totalCommands']):pick(st,['commandsUsed','commands','totalCommands']);
+    var msgs=pick(m,['messagesProcessed','messages','totalMessages'])!=null?pick(m,['messagesProcessed','messages','totalMessages']):pick(st,['messagesProcessed','messages','totalMessages']);
+    if(cmds!=null)cards.push(['⚡','Commands used',cmds,'total']);
+    if(msgs!=null)cards.push(['💬','Messages',msgs,'processed']);
+    var box=$('stats');
+    if(box.getAttribute('data-n')!=String(cards.length)){box.setAttribute('data-n',cards.length);box.innerHTML=cards.map(function(c,i){return '<div class="glass stat"><div class="l">'+c[0]+' '+c[1]+'</div><div class="v" id="sv'+i+'">–</div><div class="h">'+c[3]+'</div></div>'}).join('')}
+    cards.forEach(function(c,i){var el=$('sv'+i);if(!el)return;if(c[4]!=null)el.textContent=c[4];else if(c[2]!=null)countUp(el,Number(c[2]));else el.textContent='–'});
+    var items=s.items||[];$('sessCount').textContent=items.length;
+    $('sessList').innerHTML=items.length?items.map(function(x){return '<div class="sess"><span class="dot"></span><b>'+esc(x.number)+'</b><span class="sp"></span><span class="chip g">'+(x.connected===false?'offline':'connected')+'</span><span class="chip">⏱ '+dur(x.uptimeSeconds)+'</span></div>'}).join(''):'<div class="empty">Abhi koi session connected nahi hai.</div>';
+    var chips=[];if(sys.nodeVersion)chips.push('Node '+sys.nodeVersion);if(sys.platform)chips.push(sys.platform);if(sys.cpuCores)chips.push(sys.cpuCores+' CPU');
+    if(sys.hostTotalMemoryMB)chips.push('Host RAM '+sys.hostFreeMemoryMB+' / '+sys.hostTotalMemoryMB+' MB free');if(mem.heapUsedMB!=null)chips.push('Heap '+mem.heapUsedMB+' MB');
+    if(sys.loadAverage&&sys.loadAverage.length)chips.push('Load '+sys.loadAverage.map(function(x){return x.toFixed(2)}).join(' '));
+    $('sysInfo').innerHTML=chips.map(function(c){return '<span class="chip p">'+esc(c)+'</span>'}).join('');$('sysCard').classList.toggle('hide',!chips.length);
+    var n=s.connected!=null?s.connected:0;$('reNums').textContent=n;$('reNums2').textContent=n}
+
+  /* job widget (feature-detected) */
+  function jobHtml(j,verb){
+    if(!j||(!j.running&&!j.total))return '';
+    var pct=j.total?Math.min(100,Math.round(j.done/j.total*100)):0,fin=!j.running;
+    var head=j.running?'<b class="wn">⏳ '+verb+' ho raha hai…</b>':'<b class="ok">✅ Last apply complete</b>';
+    return '<div class="job'+(j.running?' run':'')+'"><div class="row">'+head+'<span class="sp"></span><b>'+j.done+' / '+j.total+'</b></div><div class="bar'+(j.running?' run':'')+'"><i style="width:'+pct+'%"></i></div><div class="xs mut" style="margin-top:6px">'+pct+'% numbers'+(j.failed?' · <span class="er">'+j.failed+' fail</span>':'')+(j.running?' · har 2 second mein update':'')+'</div></div>'}
+
+  /* channels */
+  function followedOf(c){var v=pick(c,['followed','followedCount','followedBy','numbersFollowing','following']);return v}
+  function loadChannels(){return api('/api/panel/channels').then(function(d){lastCh=d;renderChannels(d);return d})}
+  function renderChannels(d){
+    var list=d.channels||[],n=d.connectedNumbers!=null?d.connectedNumbers:null,j=d.job||{};
+    $('chCount').textContent=list.length;
+    var bd=$('bdCh');if(bd){bd.textContent=list.length;bd.classList.toggle('hide',!list.length)}
+    $('chs').innerHTML=list.length?list.map(function(c){
+      var id=c.jid||c.code,fo=followedOf(c),fl=c.followers!=null?c.followers:(c.subscribers!=null?c.subscribers:null);
+      var chips='';
+      if(n!=null)chips+='<span class="chip g">📱 '+n+' numbers</span><span class="chip p">😍 ~'+n+' reactions / post</span>';
+      if(fo!=null)chips+='<span class="chip g">✓ '+fo+(n!=null?'/'+n:'')+' followed</span>';
+      if(fl!=null)chips+='<span class="chip">👥 '+num(fl)+' followers</span>';
+      return '<div class="item"><div class="logo" style="width:40px;height:40px;font-size:18px">📢</div><div class="info"><div class="nm">'+esc(c.name||'Channel')+'</div>'+(c.link?'<a class="lk" href="'+esc(c.link)+'" target="_blank" rel="noopener">'+esc(c.link)+'</a>':'')+(c.jid||!c.link?'<span class="xs mut" style="word-break:break-all">'+esc(id)+'</span>':'')+'<div class="chips">'+chips+'</div></div><div class="acts"><button class="btn s sq" data-copy="'+esc(c.link||id)+'" title="Copy">📋</button><button class="btn d sq" data-rmc="'+esc(c.code)+'" data-nm="'+esc(c.name||'Channel')+'" title="Remove">🗑️</button></div></div>'}).join(''):'<div class="empty">Abhi koi channel add nahi hai.</div>';
+    $('chJob').innerHTML=jobHtml(j,'Follow');
+    $('apply').disabled=!!j.running;
+    jobPrev.ch=!!j.running}
+  /* groups */
+  function loadGroups(){return api('/api/panel/groups').then(function(d){lastGr=d;renderGroups(d);return d})}
+  function renderGroups(d){
+    var list=d.groups||[],n=d.connectedNumbers,j=d.job||{};$('gCount').textContent=list.length;
+    $('gs').innerHTML=list.length?list.map(function(c){
+      var jo=c.joined!=null?c.joined:(c.joinedCount!=null?c.joinedCount:null),chips='';
+      if(n!=null)chips+='<span class="chip g">📱 '+n+' numbers</span>';if(jo!=null)chips+='<span class="chip g">✓ '+jo+(n!=null?'/'+n:'')+' joined</span>';
+      return '<div class="item"><div class="logo" style="width:40px;height:40px;font-size:18px">👥</div><div class="info"><div class="nm">'+esc(c.name||'Group')+'</div><a class="lk" href="'+esc(c.link)+'" target="_blank" rel="noopener">'+esc(c.link)+'</a><div class="chips">'+chips+'</div></div><div class="acts"><button class="btn s sq" data-copy="'+esc(c.link)+'" title="Copy">📋</button><button class="btn d sq" data-rmg="'+esc(c.code)+'" data-nm="'+esc(c.name||'Group')+'" title="Remove">🗑️</button></div></div>'}).join(''):'<div class="empty">Abhi koi group add nahi hai.</div>';
+    $('gJob').innerHTML=jobHtml(j,'Join');$('gapply').disabled=!!j.running;jobPrev.gr=!!j.running}
+  var jobPrev={ch:false,gr:false};
+
+  function loadReacts(){return api('/api/panel/reacts').then(function(d){var r=d.reacts||[],n=lastMetrics&&lastMetrics.sessions?lastMetrics.sessions.connected:(lastCh?lastCh.connectedNumbers:null);
+    $('rcs').innerHTML=r.length?r.map(function(x){var ch=x.type!=='group';
+      return '<div class="item"><div class="logo" style="width:40px;height:40px;font-size:18px">'+(ch?'📢':'👥')+'</div><div class="info"><div class="nm">'+esc(x.name||x.jid)+' <span class="chip '+(ch?'p':'')+'">'+(ch?'Channel':'Group')+'</span></div><span class="xs mut" style="word-break:break-all">'+esc(x.jid)+'</span>'+(ch&&n!=null?'<div class="chips"><span class="chip g">😍 ~'+n+' reactions / post</span></div>':'')+'</div><div style="font-size:22px;letter-spacing:2px;text-align:right">'+esc((x.emojis||[]).join(' '))+'</div></div>'}).join(''):'<div class="empty">Abhi koi auto react set nahi hai.</div>'}).catch(function(e){$('rcs').innerHTML='<div class="empty er">'+esc(e.message)+'</div>'})}
+
+  /* logs */
+  function renderLvSeg(){var lv=['all','info','success','warning','error'];
+    $('lvSeg').innerHTML=lv.map(function(l){var c=l==='all'?logsData.length:logsData.filter(function(x){return lvKey(x)===l}).length;return '<button data-lv="'+l+'" class="'+(l===lvFilter?'on':'')+'">'+l+' · '+c+'</button>'}).join('')}
+  function lvKey(l){var v=String(l.level||'info').toLowerCase();return v==='warn'?'warning':v}
+  function renderLogs(){renderLvSeg();var box=$('logs'),atTop=box.scrollTop<30;
+    var rows=logsData.filter(function(l){return lvFilter==='all'||lvKey(l)===lvFilter});
+    box.innerHTML=rows.length?rows.map(function(l){var t=l.time?new Date(l.time):null;return '<div class="ln"><time>'+(t&&!isNaN(t)?t.toLocaleTimeString([], {hour12:false}):'')+'</time><span class="lv '+esc(lvKey(l))+'">'+esc(l.level||'info')+'</span><span class="m">'+esc(l.message)+'</span></div>'}).join(''):'<div class="empty">Koi log nahi.</div>'}
+  function loadLogs(){return api('/api/panel/logs?limit=100').then(function(d){logsData=d.logs||[];renderLogs()}).catch(function(e){$('logs').innerHTML='<div class="empty er">'+esc(e.message)+'</div>'})}
+  $('lvSeg').addEventListener('click',function(e){var b=e.target.closest('[data-lv]');if(b){lvFilter=b.getAttribute('data-lv');renderLogs()}});
   $('rl').onclick=loadLogs;
+
+  /* servers (public route) */
+  function loadServers(){return fetch('/api/servers',{headers:{'x-panel-token':TOKEN}}).then(function(r){return r.json()}).then(function(d){var l=d.servers||[];
+    $('svs').innerHTML=l.length?l.map(function(s){var on=s.online!==false,pct=s.capacity?Math.min(100,Math.round((s.active||0)/s.capacity*100)):0;
+      return '<div class="item" style="flex-wrap:wrap"><span class="dot'+(on?'':' off')+'"></span><div class="info"><div class="nm">'+esc(s.name||('Server '+s.id))+(s.full?' <span class="chip" style="color:#ffb3bd">FULL</span>':'')+'</div>'+(s.url?'<a class="lk" href="'+esc(s.url)+'" target="_blank" rel="noopener">'+esc(s.url)+'</a>':'')+'</div>'+(s.capacity?'<div style="min-width:140px;flex:1"><div class="xs mut" style="text-align:right">'+(s.active||0)+' / '+s.capacity+'</div><div class="bar"><i style="width:'+pct+'%"></i></div></div>':'')+'</div>'}).join(''):'<div class="empty">Koi server list nahi mili.</div>'}).catch(function(e){$('svs').innerHTML='<div class="empty er">'+esc(e.message)+'</div>'})}
+
+  /* actions */
+  document.addEventListener('click',function(e){
+    var rc=e.target.closest&&e.target.closest('[data-rmc]');
+    if(rc){var code=rc.getAttribute('data-rmc');confirmDlg({title:'Channel hata dein?',text:'"'+rc.getAttribute('data-nm')+'" list se hata diya jayega.',check:'Connected numbers se bhi is channel ko UNFOLLOW karwayein',ok:'Haan, hata do'}).then(function(r){if(!r)return;
+      post('/api/panel/channels/remove',{code:code,unfollow:r.checked}).then(function(x){toast('Hata diya'+(x.unfollowed?' ('+x.unfollowed+' numbers se unfollow)':''),'ok');loadChannels()}).catch(function(er){toast(er.message,'er')})})}
+    var rg=e.target.closest&&e.target.closest('[data-rmg]');
+    if(rg){var gc=rg.getAttribute('data-rmg');confirmDlg({title:'Group hata dein?',text:'"'+rg.getAttribute('data-nm')+'" list se hata diya jayega.',check:'Connected numbers ko is group se LEAVE bhi karwayein',ok:'Haan, hata do'}).then(function(r){if(!r)return;
+      post('/api/panel/groups/remove',{code:gc,leave:r.checked}).then(function(x){toast('Hata diya'+(x.left?' ('+x.left+' numbers ne leave kiya)':''),'ok');loadGroups()}).catch(function(er){toast(er.message,'er')})})}});
+
+  $('add').onclick=function(){var l=$('link').value.trim();if(!l){toast('Channel link ya JID likhein','er');return}
+    $('add').disabled=true;
+    post('/api/panel/channels',{link:l}).then(function(r){$('link').value='';
+      $('chBanner').innerHTML='<div class="note" style="border-color:rgba(37,211,102,.4);background:rgba(37,211,102,.09)"><span>✅</span><span><b>'+esc(r.name||'Channel')+'</b> add ho gaya. '+(r.applying?'Ab <b>sab '+(r.connectedNumbers!=null?r.connectedNumbers:'')+' connected numbers</b> ek saath follow kar rahe hain — neeche progress dekhein.':'Pehle se ek job chal rahi hai; <b>Apply to all now</b> se sab numbers par lagayein.')+'</span></div>';
+      toast('Channel add ho gaya'+(r.applying?' — '+r.connectedNumbers+' numbers follow kar rahe hain':''),'ok');kick();return loadChannels()})
+    .catch(function(e){toast(e.message,'er')}).then(function(){$('add').disabled=false})};
+  $('link').addEventListener('keydown',function(e){if(e.key==='Enter')$('add').click()});
+  $('apply').onclick=function(){post('/api/panel/channels/apply').then(function(r){toast(r.started?'Apply shuru ho gaya':'Pehle se chal raha hai','ok');kick();loadChannels()}).catch(function(e){toast(e.message,'er')})};
+  $('gadd').onclick=function(){var l=$('glink').value.trim();if(!l){toast('Group invite link likhein','er');return}
+    $('gadd').disabled=true;
+    post('/api/panel/groups',{link:l}).then(function(r){$('glink').value='';toast('Group add ho gaya'+(r.applying?' — '+r.connectedNumbers+' numbers join kar rahe hain':''),'ok');kick();return loadGroups()})
+    .catch(function(e){toast(e.message,'er')}).then(function(){$('gadd').disabled=false})};
+  $('glink').addEventListener('keydown',function(e){if(e.key==='Enter')$('gadd').click()});
+  $('gapply').onclick=function(){post('/api/panel/groups/apply').then(function(r){toast(r.started?'Apply shuru ho gaya':'Pehle se chal raha hai','ok');kick();loadGroups()}).catch(function(e){toast(e.message,'er')})};
+
+  /* polling: 2s while a job runs, else 5s */
+  function running(){return !!((lastCh&&lastCh.job&&lastCh.job.running)||(lastGr&&lastGr.job&&lastGr.job.running))}
+  function tick(){
+    if(!TOKEN)return;logTick++;
+    var jobs=[];
+    if(page==='ch'||page==='gr'||page==='dash'||running()||logTick%2===0){jobs.push(loadChannels().catch(function(){}),loadGroups().catch(function(){}))}
+    jobs.push(loadStats());
+    if(page==='lg'&&$('auto').checked)jobs.push(loadLogs());
+    if(page==='re'&&logTick%3===0)jobs.push(loadReacts());
+    if(page==='sv'&&logTick%3===0)jobs.push(loadServers());
+    Promise.all(jobs).then(sched,sched)}
+  function sched(){clearTimeout(timer);if(!TOKEN)return;timer=setTimeout(tick,running()?2000:5000)}
+  function kick(){clearTimeout(timer);timer=setTimeout(tick,1200)}
+
+  /* login */
+  function start(){
+    $('loginView').classList.add('hide');$('app').classList.remove('hide');buildNav();
+    var p0=null;try{p0=ss()&&ss().getItem('ahmad_page')}catch(e){}
+    go(PAGES.some(function(x){return x[0]===p0})?p0:'dash');
+    $('stats').innerHTML=skel(4).replace(/class="sk"/g,'class="sk t"');
+    loadStats();loadChannels().catch(function(){});loadGroups().catch(function(){});loadReacts();loadLogs();loadServers();sched()}
+  function doLogin(){TOKEN=$('t').value.trim();if(!TOKEN){say('Token likhein','er');return}
+    $('login').disabled=true;say('⏳ Check ho raha hai…');
+    api('/api/panel/channels').then(function(){try{ss()&&ss().setItem('ahmad_tok',TOKEN)}catch(e){}start()})
+    .catch(function(e){TOKEN='';say('❌ '+e.message,'er')}).then(function(){$('login').disabled=false})}
+  function say(t,c){$('msg').textContent=t||'';$('msg').className='sm '+(c||'')}
+  $('login').onclick=doLogin;
+  $('t').addEventListener('keydown',function(e){if(e.key==='Enter')doLogin()});
+  $('logout').onclick=function(){TOKEN='';clearTimeout(timer);try{ss()&&ss().removeItem('ahmad_tok')}catch(e){}$('app').classList.add('hide');$('loginView').classList.remove('hide');$('t').value='';say('')};
+  var saved=null;try{saved=ss()&&ss().getItem('ahmad_tok')}catch(e){}
+  if(saved){$('t').value=saved;doLogin()}
 })();
 </script></body></html>
