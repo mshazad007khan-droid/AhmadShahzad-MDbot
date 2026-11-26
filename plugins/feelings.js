@@ -20,46 +20,50 @@ async function get(url) {
 const isUrl = v => typeof v === 'string' && /^https?:\/\//i.test(v);
 
 // ═══════════════════════════════════════════
-//  GIF FETCHER — tries Nekos.best then waifu.pics
-//  Same category → same emotion
+//  GIF FETCHER (v11) — 4 sources, har ek se kai candidate; jo pehle chale wo bhej do.
+//  Ek API down ho to dusri khud chalti hai; sab fail ho to text animation aati hai.
 // ═══════════════════════════════════════════
-async function fetchGif(category) {
-    // 1. Nekos.best (primary)
-    try {
-        const d = await get(`${NEKOS_BEST}/${category}?amount=1`);
-        const r = d?.results?.[0];
-        if (r?.url && isUrl(r.url)) {
-            return { url: r.url, artist: r.artist_name, anime: r.anime_name };
-        }
-    } catch (e) { /* silent */ }
+const OTAKU = { cry: 'cry', dance: 'dance', happy: 'happy', laugh: 'laugh', smile: 'smile', wink: 'wink', wave: 'wave', hug: 'hug', kiss: 'kiss',
+    cuddle: 'cuddle', pat: 'pat', handhold: 'handhold', blush: 'blush', slap: 'slap', punch: 'punch', bite: 'bite', poke: 'poke', nom: 'nom', sleep: 'sleep',
+    yawn: 'yawn', stare: 'stare', smug: 'smug', think: 'confused', tickle: 'tickle', pout: 'pout', facepalm: 'facepalm', nope: 'no', shrug: 'shrug',
+    thumbsup: 'thumbsup', highfive: 'brofist', nod: 'yes', bored: 'sigh', cringe: 'nervous', kick: 'punch', yeet: 'run', lurk: 'peek', shoot: 'punch' };
+const WAIFU = { cry: 'cry', dance: 'dance', happy: 'happy', laugh: 'happy', smile: 'smile', wink: 'wink', wave: 'wave', hug: 'hug', kiss: 'kiss',
+    cuddle: 'cuddle', pat: 'pat', handhold: 'handhold', blush: 'blush', slap: 'slap', punch: 'bonk', bite: 'bite', poke: 'poke', nom: 'nom', sleep: 'cuddle',
+    yawn: 'cuddle', stare: 'smug', smug: 'smug', think: 'smug', tickle: 'poke', pout: 'bully', facepalm: 'cringe', nope: 'bonk', shrug: 'cringe',
+    thumbsup: 'highfive', highfive: 'highfive', nod: 'happy', bored: 'cringe', cringe: 'cringe', kick: 'kick', yeet: 'yeet', lurk: 'smug', shoot: 'kill' };
 
-    // 2. waifu.pics (fallback — same category name)
-    try {
-        const d = await get(`${WAIFU_PICS}/${category}`);
-        if (d?.url && isUrl(d.url)) return { url: d.url };
-    } catch (e) { /* silent */ }
+async function fetchGifs(category) {
+    const out = [];
+    const add = (url, extra) => { if (isUrl(url) && !out.some(o => o.url === url)) out.push({ url, ...(extra || {}) }); };
+    const tasks = [
+        get(`${NEKOS_BEST}/${category}?amount=3`).then(d => (d?.results || []).forEach(r => add(r.url, { artist: r.artist_name, anime: r.anime_name }))),
+        OTAKU[category] ? get(`https://api.otakugifs.xyz/gif?reaction=${OTAKU[category]}`).then(d => add(d?.url)) : Promise.resolve(),
+        WAIFU[category] ? get(`${WAIFU_PICS}/${WAIFU[category]}`).then(d => add(d?.url)) : Promise.resolve(),
+        WAIFU[category] ? get(`${WAIFU_PICS}/${WAIFU[category]}`).then(d => add(d?.url)) : Promise.resolve(),
+        get(`https://nekos.life/api/v2/img/${category}`).then(d => add(d?.url)).catch(() => {})
+    ].map(p => p.catch(() => {}));
+    await Promise.all(tasks);
+    return out;
+}
+// purana naam (dusre plugins use karte hon to)
+async function fetchGif(category) { const l = await fetchGifs(category); return l[0] || null; }
 
-    // 3. waifu.pics alternate mapping (some categories differ)
-    const alt = {
-        happy: 'happy', smile: 'smile', laugh: 'happy',
-        cry: 'cry', sad: 'cry', dance: 'dance', wink: 'wink',
-        wave: 'wave', hug: 'hug', kiss: 'kiss', cuddle: 'cuddle',
-        pat: 'pat', handhold: 'handhold', blush: 'blush',
-        slap: 'slap', punch: 'bonk', kick: 'kick', bite: 'bite',
-        poke: 'poke', nom: 'nom', sleep: 'sleep', yawn: 'sleep',
-        stare: 'stare', smug: 'smug', think: 'think',
-        tickle: 'tickle', pout: 'bully', facepalm: 'bonk',
-        nope: 'bonk', shrug: 'bonk', highfive: 'highfive',
-        thumbsup: 'highfive', yeet: 'yeet'
-    };
-    if (alt[category] && alt[category] !== category) {
-        try {
-            const d = await get(`${WAIFU_PICS}/${alt[category]}`);
-            if (d?.url && isUrl(d.url)) return { url: d.url };
-        } catch (e) { /* silent */ }
+// Text animation fallback (kisi bhi GIF source ke na chalne par)
+const FALLBACK = {
+    dance: ['💃', '🕺', '💃🕺', '🎶💃', '🎶🕺', '💃🎶🕺', '🎉💃🕺🎉'],
+    happy: ['😃', '😄', '😁', '😆', '🥳', '🎉'], smile: ['🙂', '😊', '😄', '😁'], laugh: ['😂', '🤣', '😹', '😂🤣', '🤣🤣🤣'],
+    cry: ['🥺', '😢', '😭', '😭😭', '💧😭💧'], hug: ['🫂', '🤗', '🫂💞', '🤗❤️'], kiss: ['😘', '💋', '😚💋', '😘❤️'],
+    angry: ['😠', '😡', '🤬', '😡💢'], sleep: ['😴', '😴💤', '💤💤💤']
+};
+async function fallbackAnimation(conn, jid, key, caption, mek) {
+    const frames = FALLBACK[key] || ['✨', '🌟', '💫', '✨'];
+    const sent = await conn.sendMessage(jid, { text: frames[0] }, { quoted: mek });
+    for (const f of frames.slice(1)) {
+        await new Promise(r => setTimeout(r, 700));
+        try { await conn.sendMessage(jid, { text: f, edit: sent.key }); } catch (_) { break; }
     }
-
-    return null;
+    await new Promise(r => setTimeout(r, 500));
+    try { await conn.sendMessage(jid, { text: `${frames[frames.length - 1]} ${caption}`, edit: sent.key }); } catch (_) {}
 }
 
 // ═══════════════════════════════════════════
@@ -75,21 +79,22 @@ function emotion(pattern, aliases, category, emoji, caption) {
         use: `.${pattern}`,
         filename: __filename
     }, async (conn, mek, m, ctx) => {
+        const from = ctx.from || mek.key.remoteJid;
         try {
-            const r = await fetchGif(category);
-            if (!r?.url) {
-                return ctx.reply(`❌ *${caption}* GIF unavailable. Dobara try karo.`);
+            const list = await fetchGifs(category);
+            for (const r of list) {
+                try {
+                    let cap = `${emoji} ${caption}`;
+                    if (r.anime) cap += `\n📺 ${String(r.anime).slice(0, 80)}`;
+                    if (r.artist) cap += `\n🎨 ${String(r.artist).slice(0, 60)}`;
+                    await require('../lib/gifsend').sendGif(conn, from, r.url, cap, mek);
+                    return;
+                } catch (e) { console.warn(`[feelings] ${pattern} source fail:`, e.message); }
             }
-
-            let cap = `${emoji} ${caption}`;
-            if (r.anime) cap += `\n📺 ${String(r.anime).slice(0, 80)}`;
-            if (r.artist) cap += `\n🎨 ${String(r.artist).slice(0, 60)}`;
-
-            return require('../lib/gifsend').sendGif(conn, ctx.from, r.url, cap, mek);
-
+            return await fallbackAnimation(conn, from, category === 'pout' ? 'angry' : category, caption, mek);
         } catch (e) {
             console.warn(`[feelings] ${pattern}:`, e.message);
-            return ctx.reply(`❌ ${caption} GIF fail.`);
+            return ctx.reply(`❌ ${caption} abhi nahi chal saka. Dobara try karo.`);
         }
     });
 }
@@ -97,22 +102,22 @@ function emotion(pattern, aliases, category, emoji, caption) {
 // ═══════════════════════════════════════════
 //  😄 HAPPY — 6 commands
 // ═══════════════════════════════════════════
-emotion('happy',     ['khush', 'feelhappy'],           'happy',     '😄', '*HAPPY!*');
+emotion('happy',     ['feelhappy'],           'happy',     '😄', '*HAPPY!*');
 emotion('smile',     ['smiling', 'muskuray'],           'smile',     '😊', '*SMILE*');
 emotion('laugh',     ['hasi', 'lol', 'laughing'],       'laugh',     '😂', '*HAHAHA!*');
 emotion('dance',     ['nach', 'party', 'dancing'],      'dance',     '💃', '*DANCING!*');
 emotion('wink',      ['winking', 'ankh'],               'wink',      '😉', '*WINK*');
-emotion('wave',      ['hello', 'hi', 'waving'],         'wave',      '👋', '*HELLO!*');
+emotion('wave',      ['waving'],         'wave',      '👋', '*HELLO!*');
 
 // ═══════════════════════════════════════════
 //  😢 SAD — 6 commands
 // ═══════════════════════════════════════════
 emotion('sad',       ['dukhi', 'feelsad'],              'cry',       '😢', '*SAD...*');
 emotion('cry',       ['rona', 'tears', 'crying'],       'cry',       '😭', '*CRYING...*');
-emotion('pout',      ['gussa', 'pouting'],              'pout',      '😤', '*POUTING*');
+emotion('pout',      ['pouting'],              'pout',      '😤', '*POUTING*');
 emotion('facepalm',  ['fp', 'facep'],                   'facepalm',  '🤦', '*FACEPALM*');
 emotion('bored',     ['boring', 'meh'],                 'bored',     '😐', '*BORED...*');
-emotion('nope',      ['nahi', 'no'],                    'nope',      '🙅', '*NOPE!*');
+emotion('nope',      ['nahi'],                    'nope',      '🙅', '*NOPE!*');
 
 // ═══════════════════════════════════════════
 //  ❤️ LOVE — 7 commands
@@ -121,7 +126,7 @@ emotion('hug',       ['gale', 'hugging'],               'hug',       '🫂', '*H
 emotion('kiss',      ['pyaar', 'chumma', 'kissing'],    'kiss',      '💋', '*KISS*');
 emotion('cuddle',    ['cuddling', 'cud'],               'cuddle',    '🥰', '*CUDDLE*');
 emotion('pat',       ['headpat', 'sehr'],               'pat',       '🖐️', '*HEADPAT*');
-emotion('handhold',  ['hold', 'hand'],                  'handhold',  '🤝', '*HAND HOLD*');
+emotion('handhold',  ['holdhand'],                  'handhold',  '🤝', '*HAND HOLD*');
 emotion('blush',     ['sharma', 'blushing'],            'blush',     '😳', '*BLUSH*');
 emotion('love',      ['iloveyou', 'pyar'],              'cuddle',    '❤️', '*LOVE*');
 
@@ -150,10 +155,10 @@ emotion('shrug',     ['idk', 'pataNahi'],               'shrug',     '🤷', '*S
 // ═══════════════════════════════════════════
 //  🎉 PARTY / WIN — 5 commands
 // ═══════════════════════════════════════════
-emotion('thumbsup',  ['like', 'ok', 'thumbs'],          'thumbsup',  '👍', '*THUMBS UP!*');
+emotion('thumbsup',  ['thumbs'],          'thumbsup',  '👍', '*THUMBS UP!*');
 emotion('highfive',  ['high5', 'hf'],                   'highfive',  '🙌', '*HIGH FIVE!*');
 emotion('yeet',      ['yeeting'],                       'yeet',      '🚀', '*YEET!*');
-emotion('nod',       ['yes', 'haan'],                   'nod',       '✅', '*NOD*');
+emotion('nod',       ['haan'],                   'nod',       '✅', '*NOD*');
 emotion('lurk',      ['watching', 'dekh'],              'lurk',      '👁️', '*LURKING...*');
 
 // ═══════════════════════════════════════════

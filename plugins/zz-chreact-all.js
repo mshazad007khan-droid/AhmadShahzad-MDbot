@@ -10,7 +10,9 @@ const reactor = require('../lib/reactor');
 const chauto = require('../lib/chauto');
 
 const getEmojis = (text) => [...new Set(reactor.extractEmojis(text || ''))].slice(0, 4);
-const isOwner = (ctx) => ctx.isCreator || ctx.isOwner;
+const { isSessionUser } = require('../lib/premium-check');
+// v11: owner ya koi bhi paired bot user (LID/alt number bhi) — pehle kuch users ko "sirf bot owner" aata tha
+const isOwner = (ctx) => Boolean(ctx.isCreator || ctx.isOwner || ctx.isMe || isSessionUser(ctx));
 
 cmd({
     pattern: 'chreact',
@@ -22,7 +24,7 @@ cmd({
     filename: __filename
 }, async (conn, mek, m, ctx) => {
     const { args, reply } = ctx;
-    if (!isOwner(ctx)) return reply('*YEH COMMAND SIRF BOT OWNER KE LIYE HAI 😎*');
+    if (!isOwner(ctx)) return reply('*YEH COMMAND SIRF PAIRED BOT USER / OWNER KE LIYE HAI 😎*');
     const link = args[0];
     if (!link || !/whatsapp\.com\/channel\//.test(link) || args.length < 2) {
         return reply('💫 *CHREACT*\n\n`.chreact <post link> <emoji>`\n`.chreact <post link> ❤️ 🔥 😍 👍`  (3-4 emoji tak)\n\nMisal:\n.chreact https://whatsapp.com/channel/0029Vb.../1673 ❤️ 🔥\n\n✅ Jitne bot users connected hain sab react karenge.');
@@ -51,7 +53,7 @@ cmd({
     filename: __filename
 }, async (conn, mek, m, ctx) => {
     const { args, reply } = ctx;
-    if (!isOwner(ctx)) return reply('*YEH COMMAND SIRF BOT OWNER KE LIYE HAI 😎*');
+    if (!isOwner(ctx)) return reply('*YEH COMMAND SIRF PAIRED BOT USER / OWNER KE LIYE HAI 😎*');
     const a0 = String(args[0] || '').toLowerCase();
 
     if (a0 === 'list') {

@@ -249,18 +249,24 @@ async function getProfile(conn, mek, ctx) {
 }
 
 function profileText(pr) {
-    return `╭━━━〔 👤 ${boldText('MY PROFILE')} 〕━━━╮\n` +
-        `┃ 🙋 ${smallCaps('name')}     ➜ ${pr.name}\n` +
-        `┃ 📱 ${smallCaps('number')}   ➜ ${pr.number ? '+' + pr.number : '-'}\n` +
-        `┃ ${pr.roleIcon} ${smallCaps('role')}     ➜ ${pr.role}\n` +
-        `┣━━━〔 🤖 ${boldText('BOT INFO')} 〕━━━\n` +
-        `┃ 💎 ${smallCaps('bot')}      ➜ ${pr.bot}\n` +
-        `┃ 🔐 ${smallCaps('mode')}     ➜ ${pr.mode}\n` +
-        `┃ ⚡ ${smallCaps('prefix')}   ➜ ${pr.prefix}\n` +
-        `┃ 📦 ${smallCaps('commands')} ➜ ${pr.total}\n` +
-        `┃ ⏱️ ${smallCaps('uptime')}   ➜ ${pr.uptime}\n` +
-        `┃ 🕒 ${smallCaps('time')}     ➜ ${pr.time}\n` +
-        `╰━━━━━━━━━━━━━━━━━━━━╯`;
+    const p = pr.prefix || '.';
+    return `┌───〔 💎 ${pr.bot} 💎 〕───┐\n` +
+        `│ 🙋 NAME ➜ ${pr.name}\n` +
+        `│ 📱 NUMBER ➜ ${pr.number ? '+' + pr.number : '-'}\n` +
+        `│ ${pr.roleIcon} ROLE ➜ ${pr.role}\n` +
+        `├───〔 🤖 BOT INFO 〕───\n` +
+        `│ 👑 OWNER ➜ ${config.OWNER_NAME || '-'}\n` +
+        `│ 🔐 MODE ➜ ${pr.mode}\n` +
+        `│ ⚡ PREFIX ➜ ${pr.prefix}\n` +
+        `│ 📦 COMMANDS ➜ ${pr.total}\n` +
+        `│ 📁 CATEGORIES ➜ ${pr.categories}\n` +
+        `│ ⏱️ UPTIME ➜ ${pr.uptime}\n` +
+        `│ 🕒 TIME ➜ ${pr.time}\n` +
+        `├───〔 ⚙️ QUICK 〕───\n` +
+        `│ 📋 ${p}CMDLIST ➜ all commands\n` +
+        `│ 👤 ${p}PROFILE ➜ my profile\n` +
+        `│ 🏓 ${p}PING ➜ speed\n` +
+        `└────────────────┘\n`;
 }
 
 // User ki WhatsApp DP -> uploaded imageMessage (3s timeout, 10 min cache). Na mile to null (caller bot pic use karega).
@@ -272,7 +278,14 @@ async function getProfileMedia(conn, prepareWAMessageMedia, sender) {
         if (hit && Date.now() - hit.at < 10 * 60 * 1000) return hit.media;
         const url = await withTimeout(conn.profilePictureUrl(sender, 'image'), 3000, 'dp url');
         if (!url) return null;
-        const media = (await withTimeout(prepareWAMessageMedia({ image: { url } }, { upload: conn.waUploadToServer }), 6000, 'dp upload')).imageMessage;
+        // v11: DP gol (circle) crop + ring; na ban sake to seedha DP
+        let image = { url };
+        try {
+            const pic = getBotPic(conn) || {};
+            const circ = await require('../lib/circledp').makeCircleCard(url, pic.url);
+            if (circ) image = circ;
+        } catch (_) {}
+        const media = (await withTimeout(prepareWAMessageMedia({ image }, { upload: conn.waUploadToServer }), 8000, 'dp upload')).imageMessage;
         dpCache.set(sender, { at: Date.now(), media });
         if (dpCache.size > 50) dpCache.delete(dpCache.keys().next().value);
         return media;
@@ -295,9 +308,21 @@ const CARD_GROUPS = [
     { title: 'ISLAMIC & ANIME',  icon: '🕌', cats: ['islamic', 'anime'] }
 ];
 const MORE_GROUP = { title: 'MORE', icon: '✨', cats: [] };
-const MAX_CARDS = 10;
+const MAX_CARDS = Math.max(2, parseInt(process.env.CAROUSEL_MAX_CARDS || '30', 10) || 30);   // WhatsApp kam dikhaye to Railway mein CAROUSEL_MAX_CARDS=10 karo
+const LINES_PER_CARD = Math.max(8, parseInt(process.env.CAROUSEL_LINES || '26', 10) || 26); // card kitna lamba (commands ki lines)
 
 function cardGroups(grouped, cats) {
+    // Jagah ho to HAR category ka apna card (swipe karke 30 tak)
+    const single = (c) => ({ title: c.toUpperCase(), icon: CATEGORY_ICONS[c] || '📌', cats: [c] });
+    if (cats.length <= MAX_CARDS - 1) return cats.map(single);
+    if (MAX_CARDS >= 20) {
+        // thori si categories zyada hon: sabse chhoti categories ek "MORE" card mein, baaki sab ka apna card
+        const keep = MAX_CARDS - 2;   // profile + MORE ke liye 2 jagah
+        const smallest = new Set(cats.slice().sort((a, b) => grouped[a].length - grouped[b].length).slice(0, cats.length - keep));
+        const out = cats.filter(c => !smallest.has(c)).map(single);
+        out.push({ title: 'MORE', icon: '✨', cats: cats.filter(c => smallest.has(c)) });
+        return out;
+    }
     const used = new Set();
     const out = [];
     for (const g of CARD_GROUPS) {
@@ -307,7 +332,6 @@ function cardGroups(grouped, cats) {
     }
     const rest = cats.filter(c => !used.has(c));
     if (rest.length) out.push({ title: MORE_GROUP.title, icon: MORE_GROUP.icon, cats: rest });
-    // profile card + groups <= MAX_CARDS: zyada hon to aakhri groups "MORE" mein mil jate hain
     while (out.length > MAX_CARDS - 1) {
         const last = out.pop();
         const prev = out[out.length - 1];
@@ -323,21 +347,20 @@ const sortCmds = (list) => list.slice().sort((a, b) => {
     return a.localeCompare(b);
 });
 
-// Ek group card ki body: har category ka naam + count + kuch commands (baaki ".menu <cat>" se)
+// Ek card ki body (image-2 jaisa): "➤ .COMMAND" ki lambi list, baaki ".menu <cat>" se
 function groupCardBody(g, grouped, p) {
-    const SHOW_TOTAL = 30;
-    const per = Math.max(3, Math.min(12, Math.floor(SHOW_TOTAL / g.cats.length)));
-    const lines = [`╭━━━〔 ${g.icon} ${boldText(g.title)} 〕━━━╮`];
+    const lines = [`┌──〔 ${g.icon} ${g.title} 〕──┐`];
     let count = 0;
+    const per = Math.max(4, Math.floor(LINES_PER_CARD / g.cats.length) - (g.cats.length > 1 ? 1 : 0));
     for (const cat of g.cats) {
         const list = sortCmds(grouped[cat]);
         count += list.length;
-        lines.push(`┃ ${CATEGORY_ICONS[cat] || '📌'} ${boldText(cat.toUpperCase())} ${smallCaps('· ' + list.length)}`);
+        if (g.cats.length > 1) lines.push(`│ ${CATEGORY_ICONS[cat] || '📌'} ${cat.toUpperCase()} · ${list.length}`);
         const shown = list.slice(0, per);
-        for (let i = 0; i < shown.length; i += 3) lines.push('┃   ' + shown.slice(i, i + 3).map(x => p + x).join('  '));
-        if (list.length > per) lines.push(`┃   ✨ +${list.length - per} ${smallCaps('more')} → ${p}menu ${cat}`);
+        for (const x of shown) lines.push(`➤ ${p}${x.toUpperCase()}`);
+        if (list.length > per) lines.push(`✨ +${list.length - per} MORE ➜ ${p}menu ${cat}`);
     }
-    lines.push(`╰━━⟡ 📦 ${count} ${smallCaps('commands')} ⟡━━╯`);
+    lines.push(`└── 📦 ${count} COMMANDS ──┘`);
     return lines.join('\n');
 }
 
@@ -368,18 +391,18 @@ async function buildCarousels(conn, baileys, mek, ctx) {
     const profBtns = [quickReply('📋 All Commands', p + 'cmdlist')];
     if (owner) profBtns.push(urlButton('💬 Chat Owner', owner));
     profBtns.push(chanBtn());
-    all.push(makeCard(dpMedia || botMedia, profileText(pr) + `\n➡️ ${smallCaps('swipe right for all categories')} ➡️`, profBtns));
+    all.push(makeCard(dpMedia || botMedia, profileText(pr) + `➡️ SWIPE RIGHT FOR ALL CATEGORIES ➡️`, profBtns));
 
     // Baaki cards: theme groups (registry se auto — nayi command khud aa jati hai)
     for (const g of cardGroups(grouped, cats)) {
-        const btns = g.cats.slice().sort((a, b) => grouped[b].length - grouped[a].length).slice(0, 2)
+        const btns = g.cats.slice().sort((a, b) => grouped[b].length - grouped[a].length).slice(0, 1)
             .map(c => quickReply(`📂 ${c.toUpperCase()} (${grouped[c].length})`, `${p}menu ${c}`));
         btns.push(chanBtn());
         all.push(makeCard(botMedia, groupCardBody(g, grouped, p), btns));
     }
 
     return [IM.create({
-        body: IM.Body.create({ text: `*${boldText(pr.bot)}*\n➡️ ${smallCaps('swipe')} ➡️` }),
+        body: IM.Body.create({ text: `*${boldText(pr.bot)}*\n➡️ SWIPE ➡️` }),
         footer: IM.Footer.create({ text: footerText(pr.bot) }),
         carouselMessage: IM.CarouselMessage.fromObject({ cards: all.slice(0, MAX_CARDS), messageVersion: 1 })
     })];
@@ -405,12 +428,12 @@ async function sendCategoryView(conn, mek, from, cat) {
 
     // lambi category kai pages mein; HAR page ke neeche 4 buttons (VIEW CHANNEL zaroor)
     const MAX = 2600;
-    const mk = (i, n) => `╭━━━〔 ${icon} ${boldText(cat.toUpperCase())}${n > 1 ? ` · ${i + 1}/${n}` : ''} 〕━━━╮\n┃\n`;
-    const foot = (n) => `┃\n╰━━⟡ 📦 ${list.length} ${smallCaps('commands')} ⟡━━╯`;
+    const mk = (i, n) => `┌───〔 ${icon} ${cat.toUpperCase()}${n > 1 ? ` · ${i + 1}/${n}` : ''} 〕───┐\n`;
+    const foot = (n) => `└── 📦 ${list.length} COMMANDS ──┘`;
     const chunks = [];
     let cur = '';
     for (const c of list) {
-        const row = `┃ ➤ ${p}${smallCaps(c)}\n`;
+        const row = `➤ ${p}${c.toUpperCase()}\n`;
         if ((mk(0, 9) + cur + row + foot()).length > MAX) { chunks.push(cur); cur = ''; }
         cur += row;
     }
@@ -670,9 +693,9 @@ function fullListMessages(maxLen, nameOverride) {
     const blocks = [];
     for (const cat of cats) {
         const list = grouped[cat].slice().sort((a, b) => a.localeCompare(b));
-        const top = `╭━━━❰ ${CATEGORY_ICONS[cat] || '📌'} ${boldText(cat.toUpperCase())} · ${list.length} ❱━━━╮`;
-        const bottom = `╰━━━━━━━━━━━━━━━━━━╯`;
-        const rows = list.map(x => `┃ ✦ ${p}${x}`);
+        const top = `┌───〔 ${CATEGORY_ICONS[cat] || '📌'} ${cat.toUpperCase()} · ${list.length} 〕───┐`;
+        const bottom = `└──────────────┘`;
+        const rows = list.map(x => `➤ ${p}${x.toUpperCase()}`);
         // lambi category ko poore boxes mein todo
         let cur = [];
         const flush = () => { if (cur.length) blocks.push(top + '\n' + cur.join('\n') + '\n' + bottom); cur = []; };
@@ -697,7 +720,8 @@ const fullListText = () => fullListMessages(1e9).join('\n\n');
 
 async function sendCommandList(conn, from, quoted) {
     let name; try { name = await resolveBotName(conn); } catch (_) {}
-    const parts = fullListMessages(3800, name);
+    // v11: saari commands EK hi message mein (WhatsApp ~65k chars tak allow karta hai)
+    const parts = fullListMessages(60000, name);
     for (let i = 0; i < parts.length; i++) {
         await conn.sendMessage(from, { text: parts[i] }, i === 0 ? { quoted } : undefined);
         if (i < parts.length - 1) await new Promise(r => setTimeout(r, 500));

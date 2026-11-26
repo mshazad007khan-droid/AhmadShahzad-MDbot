@@ -1098,9 +1098,10 @@ async function arslanPair(number, res = null) {
                 const botNumber2 = await jidNormalizedUser(conn.user.id);
                 const pushname = mek.pushName || 'User';
 
-                const isMe = Boolean(mek.key.fromMe) || sameParticipant(sender, conn.user.id) || sameParticipant(sender, conn.user.lid);
-
                 const senderAlt = mek.key.participantAlt || mek.key.participantPn || mek.key.remoteJidAlt || mek.key.senderPn || '';
+                // v11: LID wale accounts mein sender "xxxx@lid" aata hai — alt (phone number) bhi check karo, warna paired user ko "owner only" ka message aata tha
+                const isMe = Boolean(mek.key.fromMe) || sameParticipant(sender, conn.user.id) || sameParticipant(sender, conn.user.lid) ||
+                    (Boolean(senderAlt) && (sameParticipant(senderAlt, conn.user.id) || sameParticipant(senderAlt, conn.user.lid)));
                 const isOwnerNum = isOwnerNumberCheck(senderNumber, senderAlt);
                 // The WhatsApp account paired to this socket owns its own bot.
                 // Explicit configured owners remain supported as additional owners.
@@ -1180,7 +1181,7 @@ async function arslanPair(number, res = null) {
                             await footerStore.run({ jid: from, footer: footerFor(cmd.category) }, () => cmd.function(conn, mek, m, {
                                 from, quoted: mek, body, isCmd, command, args, q, text,
                                 isGroup, sender, senderNumber, botNumber2, botNumber, pushname,
-                                isMe, isOwner, isCreator,
+                                isMe, isOwner, isCreator, senderAlt,
                                 groupMetadata, groupName, participants, groupAdmins,
                                 isBotAdmins, isAdmins, reply, config, myquoted, mentionedJid, quotedTarget
                             }));
@@ -1200,7 +1201,7 @@ async function arslanPair(number, res = null) {
                                 await footerStore.run({ jid: from, footer: footerFor(menuCmd.category) }, () => menuCmd.function(conn, mek, m, {
                                     from, quoted: mek, body, isCmd, command: 'menu', args: [catKey], q: catKey, text: catKey,
                                     isGroup, sender, senderNumber, botNumber2, botNumber, pushname,
-                                    isMe, isOwner, isCreator,
+                                    isMe, isOwner, isCreator, senderAlt,
                                     groupMetadata, groupName, participants, groupAdmins,
                                     isBotAdmins, isAdmins, reply, config, myquoted, mentionedJid, quotedTarget
                                 }));
@@ -1224,7 +1225,7 @@ async function arslanPair(number, res = null) {
                     const ctx = {
                         from, l, quoted: mek, body, isCmd, command, args, q, text,
                         isGroup, sender, senderNumber, botNumber2, botNumber, pushname,
-                        isMe, isOwner, isCreator,
+                        isMe, isOwner, isCreator, senderAlt,
                         groupMetadata, groupName, participants, groupAdmins,
                         isBotAdmins, isAdmins, reply, config, myquoted, mentionedJid, quotedTarget
                     };

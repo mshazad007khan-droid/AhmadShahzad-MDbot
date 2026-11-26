@@ -1,6 +1,6 @@
 {
   "name": "ahmadshahzad-md-bot",
-  "version": "8.0.0",
+  "version": "11.0.0",
   "description": "AhmadShahzad-MD v8 — Kashmir menu, mass channel react, pairing fixes, view-once / status-save fixes",
   "main": "index.js",
   "scripts": {

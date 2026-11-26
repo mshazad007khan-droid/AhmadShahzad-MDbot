@@ -12,13 +12,7 @@ async function animateOwnMessage(conn, from, reply, initial, frames) {
     sent = await conn.sendMessage(from, { text: initial });
     for (const frame of frames) {
       await sleep(850);
-      await conn.relayMessage(from, {
-        protocolMessage: {
-          key: sent.key,
-          type: 14,
-          editedMessage: { conversation: frame }
-        }
-      }, {});
+      await conn.sendMessage(from, { text: frame, edit: sent.key });
     }
   } catch (error) {
     console.error('[AHMAD SHAHZAD emoji animation]', error);
@@ -27,10 +21,10 @@ async function animateOwnMessage(conn, from, reply, initial, frames) {
 }
 
 const animations = [
-  { pattern: 'happy', desc: 'Happy emoji animation', react: '🤭', initial: '😂', frames: ['😃','😄','😁','😊','😎','🥳','😸','😹','🌞','🌈','😃','😄','😁','😊','😎','🥳','😸','😹','🌞','🌈','😃','😄','😁','😊'] },
+  { pattern: 'happyemoji', desc: 'Happy emoji animation', react: '🤭', initial: '😂', frames: ['😃','😄','😁','😊','😎','🥳','😸','😹','🌞','🌈','😃','😄','😁','😊','😎','🥳','😸','😹','🌞','🌈','😃','😄','😁','😊'] },
   { pattern: 'heart', desc: 'Heart emoji animation', react: '❤️', initial: '🖤', frames: ['💖','💗','💕','🩷','💛','💚','🩵','💙','💜','🖤','🩶','🤍','🤎','❤️‍🔥','💞','💓','💘','💝','♥️','💟','❤️‍🩹','❤️'] },
-  { pattern: 'angry', desc: 'Angry emoji animation', react: '🤡', initial: '👽', frames: ['😡','😠','🤬','😤','😾','😡','😠','🤬','😤','😾'] },
-  { pattern: 'sad', desc: 'Sad emoji animation', react: '😶', initial: '😔', frames: ['🥺','😟','😕','😖','😫','🙁','😩','😥','😓','😪','😢','😔','😞','😭','💔','😭','😿'] },
+  { pattern: 'angryemoji', desc: 'Angry emoji animation', react: '🤡', initial: '👽', frames: ['😡','😠','🤬','😤','😾','😡','😠','🤬','😤','😾'] },
+  { pattern: 'sademoji', desc: 'Sad emoji animation', react: '😶', initial: '😔', frames: ['🥺','😟','😕','😖','😫','🙁','😩','😥','😓','😪','😢','😔','😞','😭','💔','😭','😿'] },
   { pattern: 'shy', desc: 'Shy emoji animation', react: '🧐', initial: '🧐', frames: ['😳','😊','😶','🙈','🙊','😳','😊','😶','🙈','🙊'] },
   { pattern: 'moon', desc: 'Moon phase animation', react: '🌚', initial: '🌝', frames: ['🌗','🌘','🌑','🌒','🌓','🌔','🌕','🌖','🌗','🌘','🌑','🌒','🌓','🌔','🌕','🌖','🌗','🌘','🌑','🌒','🌓','🌔','🌕','🌖','🌗','🌘','🌑','🌒','🌓','🌔','🌕','🌖','🌝🌚'] },
   { pattern: 'confused', desc: 'Confused emoji animation', react: '🤔', initial: '🤔', frames: ['😕','😟','😵','🤔','😖','😲','😦','🤷','🤷‍♂️','🤷‍♀️'] },
@@ -48,7 +42,7 @@ for (const animation of animations) {
   cmd({
     pattern: animation.pattern,
     desc: animation.desc,
-    category: 'tools',
+    category: 'emotions',
     react: animation.react,
     filename: __filename
   }, async (conn, mek, m, ctx) => {
