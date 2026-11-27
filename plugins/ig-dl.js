@@ -1,6 +1,6 @@
 const axios = require("axios");
 const mediaDl = require('../lib/media-dl');
-const { cmd } = require('../arslan');
+const { cmd } = require('../ahmadcore');
 const { fakevCard } = require('../lib/fakevCard');
 
 cmd({

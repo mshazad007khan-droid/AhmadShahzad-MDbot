@@ -1,5 +1,5 @@
 // plugins/vip-system.js — VIP system: .vip .vipmenu .addvip .delvip .viplist .vipcheck
-const { cmd } = require('../arslan');
+const { cmd } = require('../ahmadcore');
 const config = require('../config');
 const vip = require('../lib/vipstore');
 const { getBotPic } = require('../lib/botpic');

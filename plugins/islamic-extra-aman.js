@@ -1,4 +1,4 @@
-const { cmd } = require('../arslan');
+const { cmd } = require('../ahmadcore');
 
 // Helpful, general Islamic learning commands. For detailed rulings, ask a trusted scholar.
 cmd({ pattern: 'wuduguide', alias: ['wudu', 'wuzu'], desc: 'Wuzu ke basic steps', category: 'islamic', react: '💧', filename: __filename }, async (conn, mek, m, ctx) => {

@@ -1,4 +1,4 @@
-const { cmd } = require('../arslan')
+const { cmd } = require('../ahmadcore')
 const { downloadContentFromMessage, downloadMediaMessage } = require('@whiskeysockets/baileys')
 const extras = require('../lib/extras-hooks')
 
@@ -81,11 +81,11 @@ async function obtainMedia(conn, mek, from, quoted, ctxInfo) {
 
     // 3) store
     let stored = null
-    if (conn.arslanStore && stanzaId) {
+    if (conn.ahmadStore && stanzaId) {
         const jids = [...new Set([from, ctxInfo.remoteJid, participant].filter(Boolean))]
         for (const j of jids) {
             try {
-                const orig = await conn.arslanStore.loadMessage(j, stanzaId)
+                const orig = await conn.ahmadStore.loadMessage(j, stanzaId)
                 if (orig && orig.message) {
                     const u = unwrap(orig.message)
                     const t = mediaTypeOf(u.msg)

@@ -10,7 +10,7 @@
 //   .setbotpic (image)       .resetbotpic            (owner)
 //   .setownerpic (image)     .ownerpic on|off        .resetownerpic   (owner: apni photo welcome/goodbye card par)
 
-const { cmd } = require('../arslan');
+const { cmd } = require('../ahmadcore');
 const config = require('../config');
 const { downloadContentFromMessage } = require('@whiskeysockets/baileys');
 const W = require('../lib/welcome');

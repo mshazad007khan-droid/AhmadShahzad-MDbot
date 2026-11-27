@@ -8,7 +8,7 @@
 
 const fs = require('fs');
 const path = require('path');
-const { cmd } = require('../arslan');
+const { cmd } = require('../ahmadcore');
 
 const FILE = path.join(__dirname, '..', 'data', 'autoreact.json');
 const EMOJIS = ['❤️', '😍', '🔥', '👍', '😂', '🥰', '✨', '💯', '😎', '🤩', '🙏', '😊', '💖', '🎉'];

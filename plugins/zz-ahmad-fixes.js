@@ -3,7 +3,7 @@
 //   .count <N> [down]  /  .count stop      — N message (1..N) usi chat mein
 //   .getpp [number | @user | reply]        — profile photo
 //   .ufpp [blur|white|black]               — apni profile photo bina crop kiye (photo par reply karke)
-const { cmd } = require('../arslan');
+const { cmd } = require('../ahmadcore');
 const config = require('../config');
 const antibot = require('../lib/antibot');
 const { downloadContentFromMessage } = require('@whiskeysockets/baileys');

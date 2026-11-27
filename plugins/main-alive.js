@@ -1,4 +1,4 @@
-const { cmd, commands } = require('../arslan');
+const { cmd, commands } = require('../ahmadcore');
 const config = require('../config');
 const { getOwnerPic } = require('../lib/botpic');
 
@@ -24,6 +24,7 @@ async (conn, mek, m, { from, reply }) => {
         const status = `
         *${config.BOT_NAME || '𝐀𝐡𝐦𝐚𝐝𝐒𝐡𝐚𝐡𝐳𝐚𝐝-𝐌𝐃'} is online 🤗♥️*
 *┏────〘 INFO 〙───⊷*
+*┃📝 ${(() => { try { return require('../lib/userbrand').peek(conn).desc || ''; } catch (_) { return ''; } })() || 'Online & ready'}*
 *┃👑 MODE :❯ ${(config.WORK_TYPE || 'public').toUpperCase()}*
 *┃👑 OWNER :❯ ${config.OWNER_NAME}*
 *┃📞 CONTACT :❯ wa.me/${config.OWNER_NUMBER}*
@@ -34,7 +35,7 @@ async (conn, mek, m, { from, reply }) => {
 *┗──────────────⊷*
 *👑 ${config.BOT_NAME || '𝐀𝐡𝐦𝐚𝐝𝐒𝐡𝐚𝐡𝐳𝐚𝐝-𝐌𝐃'} 👑*`;
 
-        const pic = getOwnerPic();
+        const pic = getOwnerPic(conn);
         if (pic) {
             try { await conn.sendMessage(from, { image: pic, caption: status }, { quoted: mek }); return; }
             catch (e) { console.error('alive image failed:', e.message); }

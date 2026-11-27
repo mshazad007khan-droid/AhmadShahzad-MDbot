@@ -6,7 +6,7 @@
 // Source: TikTok search (tikwm) — sab se pakka; na chale to YouTube Shorts. Facebook/Instagram ki apni
 // koi free "search" API nahi hoti, isliye un commands mein reels-style videos (TikTok/Shorts) aati hain.
 const axios = require('axios');
-const { cmd, findCommand } = require('../arslan');
+const { cmd, findCommand } = require('../ahmadcore');
 const config = require('../config');
 
 const UA = 'Mozilla/5.0 (Linux; Android 13; Pixel 7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Mobile Safari/537.36';

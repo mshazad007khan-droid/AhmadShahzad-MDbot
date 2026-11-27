@@ -1,4 +1,4 @@
-const { cmd } = require('../arslan');
+const { cmd } = require('../ahmadcore');
 
 // 𝐀𝐡𝐦𝐚𝐝𝐒𝐡𝐚𝐡𝐳𝐚𝐝-𝐌𝐃: 28 additional Islamic learning and reminder commands.
 // General educational guidance; consult a trusted scholar for detailed rulings.

@@ -1,12 +1,12 @@
 // plugins/vip-commands.js — 💎 VIP commands (har section me 2-4). Sirf VIP / owner chala sakta hai.
 const crypto = require('crypto');
-const { cmd } = require('../arslan');
+const { cmd } = require('../ahmadcore');
 const vip = require('../lib/vipstore');
 const U = require('../lib/v10util');
 
 function V(opts, fn) {
     const o = { react: '💎', ...opts, desc: '💎 VIP · ' + opts.desc, filename: __filename };
-    o.alias = (o.alias || []).filter(a => !require('../arslan').findCommand(a));
+    o.alias = (o.alias || []).filter(a => !require('../ahmadcore').findCommand(a));
     vip.registry.push({ pattern: o.pattern, category: o.category });
     cmd(o, async (conn, mek, m, ctx) => {
         try {

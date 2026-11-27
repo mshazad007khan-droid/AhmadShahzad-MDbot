@@ -1,0 +1,115 @@
+const { cmd, commands } = require('../ahmadcore');
+const axios = require('axios');
+const { sendCopy } = require('../lib/copybtn');
+
+// Pairing code apne hi server (/code route) se aata hai. Purani Heroku API band thi.
+// Alag server use karna ho to env me PAIR_API set karo, e.g. https://mybot.up.railway.app
+async function fetchPairCode(number) {
+    const base = (process.env.PAIR_API || `http://127.0.0.1:${process.env.PORT || 8000}`).replace(/\/+$/, '');
+    try {
+        return await axios.get(`${base}/code`, { params: { number }, timeout: 45000 });
+    } catch (e) {
+        const msg = e.response && e.response.data && (e.response.data.message || e.response.data.error);
+        const err = new Error(msg || e.message);
+        err.userMessage = msg || null;
+        throw err;
+    }
+}
+
+cmd({
+    pattern: "pair",
+    alias: ["getpaijsksnsr", "pairing", "clonebnsjdndnznot"],
+    react: "✅",
+    desc: "Get pairing code for 𝐀𝐡𝐦𝐚𝐝𝐒𝐡𝐚𝐡𝐳𝐚𝐝-𝐌𝐃 bot",
+    category: "download",
+    use: ".pair 92323***",
+    filename: __filename
+}, async (conn, mek, m, { from, quoted, body, isCmd, command, args, q, isGroup, senderNumber, reply }) => {
+    try {
+        // Extract phone number from command
+        const phoneNumber = q ? q.trim().replace(/[^0-9]/g, '') : senderNumber.replace(/[^0-9]/g, '');
+
+        // Validate phone number format
+        if (!phoneNumber || phoneNumber.length < 10 || phoneNumber.length > 15) {
+            return await reply("❌ Please provide a valid phone number without `+`\nExample: `.pair 92323***`");
+        }
+
+        // Make API request to get pairing code
+        const response = await fetchPairCode(phoneNumber);
+
+        if (!response.data || !response.data.code) {
+            return await reply("❌ Failed to retrieve pairing code. Please try again later.");
+        }
+
+        const pairingCode = response.data.code;
+        const doneMessage = "> *PAIRING CODE*";
+
+        // v12.2: ek hi message, neeche 📋 Copy Code button (na dikhe to code-block mein aata hai)
+        await sendCopy(conn, from, {
+            text: `${doneMessage}\n\n*Your pairing code is:*\n\`\`\`${pairingCode}\`\`\`\n\n_WhatsApp ➜ Linked Devices ➜ Link with phone number ➜ code daalo._`,
+            copies: [{ label: '📋 Copy Code', value: String(pairingCode).replace(/-/g, '') }],
+            quoted: mek
+        });
+
+    } catch (error) {
+        console.error("Pair command error:", error);
+        await reply(error.userMessage ? `❌ ${error.userMessage}` : "❌ An error occurred while getting pairing code. Please try again later.");
+    }
+});
+
+cmd({
+    pattern: "pair2",
+    alias: ["getpair2", "reqpair", "clonebot2"],
+    react: "📉",
+    desc: "Get pairing code for 𝐀𝐡𝐦𝐚𝐝𝐒𝐡𝐚𝐡𝐳𝐚𝐝-𝐌𝐃 bot",
+    category: "download",
+    use: ".pair 92323XXX",
+    filename: __filename
+}, async (conn, mek, m, { from, quoted, body, isCmd, command, args, q, isGroup, senderNumber, reply }) => {
+    try {
+        // Check if in group
+        if (isGroup) {
+            return await reply("❌ This command only works in private chat. Please message me directly.");
+        }
+
+        // Show processing reaction
+        await conn.sendMessage(from, { react: { text: "⏳", key: mek.key } });
+
+        // Extract phone number
+        const phoneNumber = q ? q.trim().replace(/[^0-9]/g, '') : senderNumber.replace(/[^0-9]/g, '');
+
+        // Validate phone number
+        if (!phoneNumber || phoneNumber.length < 10 || phoneNumber.length > 15) {
+            return await reply("❌ Invalid phone number format!\n\nPlease use: `.pair 92323000000000`\n(Without + sign)");
+        }
+
+        // Get pairing code from API
+        const response = await fetchPairCode(phoneNumber);
+        
+        if (!response.data?.code) {
+            return await reply("❌ Failed to get pairing code. Please try again later.");
+        }
+
+        const pairingCode = response.data.code;
+        
+        // Send image with caption
+        const sentMessage = await conn.sendMessage(from, {
+            image: { url: require('path').join(__dirname, '../data/assets/banner.jpg') },
+            caption: `- *⍴ᥲіrіᥒg ᥴ᥆ძᥱ*\n\n Notification has been sent to your WhatsApp. Please check your phone and copy this code to pair it and get your session id.\n\n*🔢 Pairing Code*: *${pairingCode}*\n\n> *Copy it from below message 👇🏻*`
+        }, { quoted: m });
+
+        // v12.2: code alag message mein, 📋 Copy Code button ke saath
+        await sendCopy(conn, from, {
+            text: `*🔢 Pairing Code*\n\n\`\`\`${pairingCode}\`\`\``,
+            copies: [{ label: '📋 Copy Code', value: String(pairingCode).replace(/-/g, '') }],
+            quoted: mek
+        });
+        
+        // Add ✅ reaction to the clean code message
+        await conn.sendMessage(from, { react: { text: "✅", key: mek.key } });
+
+    } catch (error) {
+        console.error("Pair command error:", error);
+        await reply(error.userMessage ? `❌ ${error.userMessage}` : "❌ An error occurred. Please try again later.");
+    }
+});

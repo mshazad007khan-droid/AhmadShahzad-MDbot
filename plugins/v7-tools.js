@@ -3,7 +3,7 @@
 //   .crypto btc             — crypto price (USD + PKR)
 //   .ytthumb <youtube link> — video ka HD thumbnail
 const axios = require('axios');
-const { cmd } = require('../arslan');
+const { cmd } = require('../ahmadcore');
 const config = require('../config');
 
 const FOOT = () => (config.BOT_FOOTER ? '\n> ' + config.BOT_FOOTER : '');

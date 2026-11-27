@@ -1,7 +1,7 @@
 // plugins/profile-menu.js
 //  .profile / .myprofile / .menuprofile  -> requesting user ka profile card (DP + role + bot info)
 //  .cmdlist / .commands / .allcmds / .listcmds -> saari visible commands ki VIP list (registry se auto, 4000 chars par split)
-const { cmd } = require('../arslan');
+const { cmd } = require('../ahmadcore');
 const cm = require('./carousel-menu');
 
 cmd({

@@ -1,4 +1,4 @@
-const { cmd } = require('../arslan');
+const { cmd } = require('../ahmadcore');
 const { downloadContentFromMessage, downloadMediaMessage } = require('@whiskeysockets/baileys');
 const settings = require('../lib/botsettings');
 const config = require('../config');

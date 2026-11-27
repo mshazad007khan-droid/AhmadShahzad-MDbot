@@ -1,5 +1,5 @@
 // plugins/voicechanger.js — VC (voice change) commands: naam jaisa chaha gaya hai
-const { cmd } = require('../arslan');
+const { cmd } = require('../ahmadcore');
 const vc = require('../lib/voicechanger');
 const { downloadContentFromMessage } = require('@whiskeysockets/baileys');
 

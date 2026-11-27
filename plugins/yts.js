@@ -1,4 +1,4 @@
-const { cmd } = require('../arslan')
+const { cmd } = require('../ahmadcore')
 const yts = require('yt-search')
 
 cmd({

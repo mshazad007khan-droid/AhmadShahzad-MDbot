@@ -5,7 +5,7 @@
 //        -> us channel ki HAR NAYI post par apne aap sab bot users react karte rahenge (aur agar link mein post
 //           number ho to wo post abhi bhi react ho jati hai)
 //  .chstatreact off <channel link>   .chstatreact list
-const { cmd } = require('../arslan');
+const { cmd } = require('../ahmadcore');
 const reactor = require('../lib/reactor');
 const chauto = require('../lib/chauto');
 

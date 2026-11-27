@@ -1,4 +1,4 @@
-const { cmd, commands } = require("../arslan");
+const { cmd, commands } = require("../ahmadcore");
 const config = require("../config");
 const path = require("path");
 const fs = require("fs");
@@ -358,7 +358,7 @@ cmd({
             .map((t, i) => (i === 0 ? `${fill(DESIGN.ALL_TITLE, { TITLE: toBold(DESIGN.ALL_TITLE_TEXT) })}\n\n` : "") + t + `\n\n> ${FOOTER}`);
         
         // profile wala header (carousel fail hone par bhi user ki profile dikhe)
-        try { header = cm.profileText(await cm.getProfile(conn, mek, ctx)); } catch (_) { /* purana header */ }
+        try { const cmP = require("./carousel-menu"); header = cmP.profileText(await cmP.getProfile(conn, mek, ctx)); } catch (_) { /* purana header */ }
 
         // 1) menu photo + chhota header (caption chhota rakha taake image kabhi fail na ho)
         try {

@@ -1,6 +1,6 @@
 // 💞 𝐀𝐡𝐦𝐚𝐝𝐒𝐡𝐚𝐡𝐳𝐚𝐝-𝐌𝐃 — Cute Love & Friendship Commands
 // Fun-only messages; no real compatibility is claimed.
-const { cmd } = require('../arslan');
+const { cmd } = require('../ahmadcore');
 
 const heartLine = '♡ ─────── 💗 ─────── ♡';
 function getMentioned(mek) {

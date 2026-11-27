@@ -1,6 +1,6 @@
 // plugins/video.js — YouTube video download, LOCAL (yt-dlp), no API needed
 const yts = require('yt-search');
-const { cmd } = require('../arslan');
+const { cmd } = require('../ahmadcore');
 const { fakevCard } = require('../lib/fakevCard');
 const mediaDl = require('../lib/media-dl');
 const vh = require('../lib/vidhelper');

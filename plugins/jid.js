@@ -1,6 +1,6 @@
 // plugins/jid.js — .jid : kisi bhi chat/channel/group ka JID nikalo, code-block mein (tap/long-press
 // karke copy ho jata hai) + ek "📋 Copy JID" button bhi try karta hai.
-const { cmd } = require('../arslan');
+const { cmd } = require('../ahmadcore');
 
 function extractLink(text) {
     const t = String(text || '');
@@ -11,29 +11,11 @@ function extractLink(text) {
     return null;
 }
 
-// JID ke neeche ek "Copy JID" button — WhatsApp ka native "cta_copy" button (support sab clients mein
-// guarantee nahi, isliye ye sirf BONUS hai; asli copy hamesha upar wale ```code block``` se bhi ho
-// jata hai, jise WhatsApp mein tap/long-press karke copy kiya ja sakta hai).
-async function sendWithCopyButton(conn, mek, from, body, jidToCopy) {
-    try {
-        const baileys = require('@whiskeysockets/baileys');
-        const { proto, generateWAMessageFromContent } = baileys;
-        const IM = proto.Message.InteractiveMessage;
-        const interactive = IM.create({
-            body: IM.Body.create({ text: body }),
-            nativeFlowMessage: IM.NativeFlowMessage.fromObject({
-                buttons: [{ name: 'cta_copy', buttonParamsJson: JSON.stringify({ display_text: '📋 Copy JID', id: 'copy_jid', copy_code: jidToCopy }) }]
-            })
-        });
-        const msg = generateWAMessageFromContent(from, { viewOnceMessage: { message: { messageContextInfo: { deviceListMetadata: {}, deviceListMetadataVersion: 2 }, interactiveMessage: interactive } } }, { quoted: mek, userJid: conn.user && conn.user.id });
-        await conn.relayMessage(from, msg.message, { messageId: msg.key.id });
-        return true;
-    } catch (e) { return false; }
-}
+const { sendCopy } = require('../lib/copybtn');
 
 cmd({
     pattern: 'jid',
-    alias: ['getjid', 'chatid', 'groupid'],
+    alias: ['getjid', 'chatid', 'groupid', 'gid', 'gjid', 'cid', 'chjid', 'channeljid', 'channelid', 'newsletterid'],
     desc: 'Chat / Group / Channel ka JID nikalo (copy karne ke liye)',
     category: 'tools',
     react: '🆔',
@@ -67,10 +49,9 @@ cmd({
             label = isGroup ? 'This Group' : 'This Chat';
         }
 
-        // FIX: pehle "Copy JID" interactive button bheja jata tha — WhatsApp us message ko aksar dikhata hi nahi
-        // (send "success" ho jata hai par chat mein kuch nahi aata). Ab seedha text — hamesha dikhta hai.
-        const body = `🆔 *${label} JID*\n\n\`\`\`${jid}\`\`\`\n\n_Tap/long-press karke copy karo._`;
-        await conn.sendMessage(from, { text: body }, { quoted: mek });
+        // v12.2: 📋 Copy button (jid / gid / channel id sab par). Button na dikhe to bhi JID code-block mein hai (long-press se copy).
+        const body = `🆔 *${label} JID*\n\n\`\`\`${jid}\`\`\`\n\n_Neeche 📋 Copy dabao (ya JID par long-press karo)._`;
+        await sendCopy(conn, from, { text: body, copies: [{ label: '📋 Copy JID', value: jid }], quoted: mek });
     } catch (e) {
         return reply('❌ JID nikalne mein error: ' + e.message);
     }

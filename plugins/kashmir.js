@@ -6,7 +6,7 @@
 //   Media:  .kphoto  .kvideo  .ksong  .kvideosong
 //   Baqi:   .kshayari .ksad .kquote .kdua .kfacts .kfood .kkahwa .knoonchai .kweather .knamaz .kplaces
 const axios = require('axios');
-const { cmd } = require('../arslan');
+const { cmd } = require('../ahmadcore');
 const config = require('../config');
 const kbgm = require('../lib/kbgmusic');
 const bgm = require('../lib/bgmusic');

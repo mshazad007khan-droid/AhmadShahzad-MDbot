@@ -1,10 +1,10 @@
 // plugins/pro-tools-v10.js — professional utility commands (sab offline, koi API nahi chahiye)
 const crypto = require('crypto');
-const { cmd } = require('../arslan');
+const { cmd } = require('../ahmadcore');
 const U = require('../lib/v10util');
 
 function T(pattern, alias, desc, category, react, use, fn) {
-    cmd({ pattern, alias: (alias || []).filter(a => !require('../arslan').findCommand(a)), desc, category, react, use, filename: __filename }, async (conn, mek, m, ctx) => {
+    cmd({ pattern, alias: (alias || []).filter(a => !require('../ahmadcore').findCommand(a)), desc, category, react, use, filename: __filename }, async (conn, mek, m, ctx) => {
         try {
             const out = await fn(ctx, { conn, mek, m });
             if (typeof out === 'string' && out) await ctx.reply(out);

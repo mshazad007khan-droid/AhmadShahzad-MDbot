@@ -1,4 +1,4 @@
-const { cmd } = require('../arslan');
+const { cmd } = require('../ahmadcore');
 const { isOwner, cleanNumber } = require('../lib/premium-check');
 const fs = require('fs');
 const path = require('path');
@@ -25,7 +25,7 @@ cmd({ pattern: 'bothealth', alias: ['healthcheck', 'amanhealth'], desc: 'Owner: 
   const seconds = Math.floor(process.uptime());
   const pluginsDir = path.join(__dirname);
   let pluginCount = 0;
-  try { pluginCount = fs.readdirSync(pluginsDir).filter(f => f.endsWith('.js')).length; } catch {}
+  try { pluginCount = [pluginsDir, path.join(pluginsDir, '..', 'plugins2')].reduce((n, d) => n + (fs.existsSync(d) ? fs.readdirSync(d).filter(f => f.endsWith('.js')).length : 0), 0); } catch {}
   const sockets = global.activeSockets instanceof Map ? global.activeSockets : new Map();
   const live = [...sockets.values()].filter(s => s && s.user).length;
   const dbState = (() => { try { return require('mongoose').connection.readyState; } catch { return -1; } })();
@@ -42,9 +42,10 @@ cmd({ pattern: 'bothealth', alias: ['healthcheck', 'amanhealth'], desc: 'Owner: 
 cmd({ pattern: 'pluginscan', alias: ['plugincheck'], desc: 'Owner: list plugin files and sizes', category: 'owner', react: '🧩', filename: __filename }, async (conn, mek, m, ctx) => {
   if (!ownerOnly(ctx)) return deny(ctx);
   try {
-    const dir = __dirname;
-    const files = fs.readdirSync(dir).filter(f => f.endsWith('.js')).sort();
-    const totalBytes = files.reduce((sum, f) => sum + fs.statSync(path.join(dir, f)).size, 0);
+    const dirs = [__dirname, path.join(__dirname, '..', 'plugins2')].filter(d => fs.existsSync(d));
+    const entries = dirs.flatMap(d => fs.readdirSync(d).filter(f => f.endsWith('.js')).map(f => ({ f, p: path.join(d, f) })));
+    const files = entries.map(e => e.f).sort();
+    const totalBytes = entries.reduce((sum, e) => sum + fs.statSync(e.p).size, 0);
     const unusual = files.filter(f => f.endsWith('.js.js') || f.startsWith('.'));
     return ctx.reply([
       '🧩 *PLUGIN FILE SCAN*', '',

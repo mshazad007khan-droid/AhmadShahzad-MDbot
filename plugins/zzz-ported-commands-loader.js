@@ -12,7 +12,7 @@
 
 const fs = require('fs');
 const path = require('path');
-const { cmd, findCommand } = require('../arslan');
+const { cmd, findCommand } = require('../ahmadcore');
 const config = require('../config');
 const realDb = require('../lib/database');
 
@@ -143,7 +143,7 @@ function loadPortedCommands() {
                         isBotAdmin: ctx.isBotAdmins,
                         isMod: ctx.isOwner,
                         config: adaptedConfig,
-                        commands: require('../arslan').commands,
+                        commands: require('../ahmadcore').commands,
                         database: dbShim,
                         utils: {
                             getMessageContent,

@@ -1,7 +1,7 @@
 // plugins/song.js
 // 𝐀𝐡𝐦𝐚𝐝𝐒𝐡𝐚𝐡𝐳𝐚𝐝-𝐌𝐃 — Song download: LOCAL yt-dlp / ytdl-core first (no API), public APIs only as last fallback
 
-const { cmd } = require('../arslan');
+const { cmd } = require('../ahmadcore');
 const config = require('../config');
 const axios = require('axios');
 const yts = require('yt-search');

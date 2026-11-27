@@ -6,7 +6,7 @@ const path = require('path');
 const crypto = require('crypto');
 const { spawn } = require('child_process');
 const { downloadContentFromMessage } = require('@whiskeysockets/baileys');
-const { cmd } = require('../arslan');
+const { cmd } = require('../ahmadcore');
 
 const ffmpegBin = () => { try { return require('@ffmpeg-installer/ffmpeg').path || 'ffmpeg'; } catch (_) { return 'ffmpeg'; } };
 function run(args, timeout = 240000) {

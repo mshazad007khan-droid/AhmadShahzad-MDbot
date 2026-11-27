@@ -1,4 +1,4 @@
-const { cmd } = require('../arslan');
+const { cmd } = require('../ahmadcore');
 const config = require('../config');
 const fs = require('fs-extra');
 const path = require('path');
@@ -39,7 +39,7 @@ cmd({
 
     let totalCmds = 0;
     try {
-        const events = require('../arslan');
+        const events = require('../ahmadcore');
         totalCmds = (events.commands || []).length;
     } catch {}
 
@@ -497,7 +497,7 @@ cmd({
     if (!isOwner(ctx)) return ctx.reply('⛔ Owner only.');
 
     let events;
-    try { events = require('../arslan'); } catch { return ctx.reply('❌ Events load fail.'); }
+    try { events = require('../ahmadcore'); } catch { return ctx.reply('❌ Events load fail.'); }
 
     const commands = events.commands || [];
     const cats = {};

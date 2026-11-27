@@ -2,7 +2,7 @@
 // .nettest      — server ke internet / yt-dlp / ffmpeg ka quick check (kya block hai?)
 // .nettest yt   — YouTube extraction ka asli test (har client try karta hai)
 
-const { cmd } = require('../arslan');
+const { cmd } = require('../ahmadcore');
 const axios = require('axios');
 const { spawn, spawnSync } = require('child_process');
 const mediaDl = require('../lib/media-dl');

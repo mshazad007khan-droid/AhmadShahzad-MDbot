@@ -1,4 +1,4 @@
-const { cmd } = require('../arslan');
+const { cmd } = require('../ahmadcore');
 const config = require('../config');
 const axios = require('axios');
 const mediaDl = require('../lib/media-dl');

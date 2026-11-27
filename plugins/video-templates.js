@@ -1,5 +1,5 @@
 // plugins/video-templates.js — kisi bhi video par reply karke ready-made edit laga do
-const { cmd } = require('../arslan');
+const { cmd } = require('../ahmadcore');
 const vt = require('../lib/vtemplates');
 const { downloadContentFromMessage } = require('@whiskeysockets/baileys');
 

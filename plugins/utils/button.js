@@ -27,25 +27,22 @@ function toNativeFlowButtons(buttons = []) {
     });
 }
 
+// v12.2: relay + "biz" node (copybtn.js) — pehle `interactiveButtons` Baileys rc14 mein chalta hi nahi tha, button/message gum ho jata tha.
 async function sendButtons(sock, jid, { text, footer, buttons = [], quoted } = {}) {
     try {
-        return await sock.sendMessage(jid, {
-            text: text || '',
-            footer: footer || '',
-            interactiveButtons: toNativeFlowButtons(buttons)
-        }, { quoted });
+        const nf = toNativeFlowButtons(buttons);
+        if (!nf.length) throw new Error('no buttons');
+        return await require('../../lib/copybtn').sendNative(sock, jid, { text, footer: footer || undefined, buttons: nf, quoted });
     } catch (e) {
-        return await sock.sendMessage(jid, { text: text || '' }, { quoted });
+        const copies = buttons.filter(b => b.type === 'copy' && b.copyCode).map(b => '```' + b.copyCode + '```');
+        return await sock.sendMessage(jid, { text: [text || '', ...copies].join('\n\n') }, { quoted });
     }
 }
 
 async function sendInteractiveMessage(sock, jid, { text, footer, interactiveButtons = [], quoted } = {}) {
     try {
-        return await sock.sendMessage(jid, {
-            text: text || '',
-            footer: footer || '',
-            interactiveButtons
-        }, { quoted });
+        if (!interactiveButtons.length) throw new Error('no buttons');
+        return await require('../../lib/copybtn').sendNative(sock, jid, { text, footer: footer || undefined, buttons: interactiveButtons, quoted });
     } catch (e) {
         return await sock.sendMessage(jid, { text: text || '' }, { quoted });
     }

@@ -1,5 +1,5 @@
 // .owner — bot owner ka contact card (number fixed: 923264931117, naam us user ke .ownername se)
-const { cmd } = require('../arslan');
+const { cmd } = require('../ahmadcore');
 const config = require('../config');
 
 cmd({

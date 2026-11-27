@@ -1,6 +1,6 @@
 // plugins/video-pack.js — .cartoon .movie .romance .couple .islamicvid
 // Har command YouTube se search karke RANDOM nayi video bhejta hai. Naam likho to usi ki video.
-const { cmd } = require('../arslan');
+const { cmd } = require('../ahmadcore');
 const mediaDl = require('../lib/media-dl');
 const vh = require('../lib/vidhelper');
 

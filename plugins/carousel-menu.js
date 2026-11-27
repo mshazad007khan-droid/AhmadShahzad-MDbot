@@ -5,7 +5,7 @@
 
 const fs = require('fs');
 const path = require('path');
-const { cmd, commands } = require('../arslan');
+const { cmd, commands } = require('../ahmadcore');
 const config = require('../config');
 const { getBotPic } = require('../lib/botpic');
 
@@ -14,17 +14,19 @@ const CMDS_PER_CARD = 6;        // ek card mein kitni commands (list + buttons)
 const CARDS_PER_PAGE = 8;       // ek page par command cards (WhatsApp max 10 cards: info + nav ke liye jagah)
 const CATEGORY_ICONS = {
     main: '🏠', general: '🏠', settings: '⚙️', pair: '🔗', channel: '📢', sticker: '🏷️',
-    owner: '👑', group: '👥', download: '📥', music: '🎵', anime: '🎌', fun: '🎮',
+    owner: '👑', customize: '🎨', host: '🔗', group: '👥', download: '📥', music: '🎵', anime: '🎌', fun: '🎮',
     games: '🎲', love: '💞', emotions: '😊', islamic: '🕌', tools: '🧰', utility: '🛠️',
     image: '🖼️', system: '💻', search: '🔎', misc: '📦', personal: '👤',
     textfx: '🔤', calc: '🧮', funzone: '🎉', extra: '✨', video: '🎬', prank: '😈', voice: '🎙️', voicechange: '🗣️', ai: '🤖', name: '✍️', videoedit: '🎞️', photoedit: '🖼️', audioedit: '🎧', kashmir: '🏔️'
 };
-const CATEGORY_ORDER = ['owner', 'voice', 'voicechange', 'kashmir', 'video', 'prank', 'group', 'ai', 'download', 'music', 'tools', 'sticker', 'videoedit', 'photoedit', 'audioedit',
+const CATEGORY_ORDER = ['owner', 'customize', 'host', 'voice', 'voicechange', 'kashmir', 'video', 'prank', 'group', 'ai', 'download', 'music', 'tools', 'sticker', 'videoedit', 'photoedit', 'audioedit',
     'fun', 'islamic', 'anime', 'name', 'games', 'love', 'emotions', 'main', 'general', 'settings', 'utility', 'image', 'system', 'search', 'misc', 'textfx', 'calc', 'funzone'];
 const TOP_COMMANDS = ['song', 'video', 'play', 'tiktok', 'fb', 'ig', 'ytmp3', 'ai', 'sticker', 'vv', 'tts', 'bgmusicvoice', 'prank', 'ping', 'alive', 'owner', 'menu'];
 // -------------------------------------------------
 
 const PREFIX = () => config.PREFIX || '.';
+// command ke saath chhota (bracket) hint, jaise ".URL2 (Uguu)" — cmd({ menuHint: 'Uguu' })
+const hintOf = (name) => { try { const c = commands.find(x => x.pattern === name); return c && c.menuHint ? ` (${c.menuHint})` : ''; } catch (_) { return ''; } };
 const botName = () => String(config.BOT_NAME || '𝐀𝐡𝐦𝐚𝐝𝐒𝐡𝐚𝐡𝐳𝐚𝐝-𝐌𝐃').trim();
 
 function uptimeText() {
@@ -117,7 +119,8 @@ function getHeaderMedia(conn, prepareWAMessageMedia, timeoutMs) {
 let ownerMediaCache = null;
 function getOwnerMedia(conn, prepareWAMessageMedia, timeoutMs) {
     try {
-        const f = config.OWNER_IMAGE_PATH;
+        let f = config.OWNER_IMAGE_PATH;
+        try { const mine = require('../lib/userbrand').getOwnerPicPath(conn); if (mine) f = mine; } catch (_) {}   // user ki apni .ownerpic
         if (!f || !fs.existsSync(f)) return getHeaderMedia(conn, prepareWAMessageMedia, timeoutMs);
         const key = f + '|' + fs.statSync(f).mtimeMs;
         if (ownerMediaCache && ownerMediaCache.key === key && Date.now() - ownerMediaCache.at < MEDIA_TTL_MS) return ownerMediaCache.promise;
@@ -181,7 +184,17 @@ async function sendOwnerContact(conn, jid, quoted) {
 }
 
 
-const channelUrl = () => config.CHANNEL_LINK || config.FORCE_CHANNEL_1 || config.FORCE_CHANNEL_2 || 'https://whatsapp.com/channel/0029VbECaFY3GJOpTccc5c0c';
+// v11.2: menu cards par channel buttons ghoomte hain (card1 = channel1, card2 = channel2, card3 = channel1 ...)
+// Badalna ho to Railway Variable MENU_CHANNELS="link1,link2,link3" (comma se alag)
+const channelUrls = () => {
+    const env = String(process.env.MENU_CHANNELS || '').split(',').map(x => x.trim()).filter(x => /^https?:/i.test(x));
+    const def = ['https://whatsapp.com/channel/0029VbCx2Sb5q08a3fe3KZ42', config.FORCE_CHANNEL_1, config.CHANNEL_LINK]
+        .map(x => String(x || '').trim()).filter(x => /^https?:/i.test(x));
+    return [...new Set(env.length ? env : def)];
+};
+const channelAt = (i) => { const l = channelUrls(); return l.length ? l[i % l.length] : channelUrl(); };
+const channelBtnAt = (i) => { const n = channelUrls().length || 1; return urlButton(`📢 CHANNEL ${(i % n) + 1}`, channelAt(i)); };
+const channelUrl = config.CHANNEL_LINK || config.FORCE_CHANNEL_1 || config.FORCE_CHANNEL_2 || 'https://whatsapp.com/channel/0029VbECaFY3GJOpTccc5c0c';
 const channelButton = () => urlButton('📢 VIEW CHANNEL', channelUrl());
 const hasCmd = (n) => commands.some(c => c.pattern === n || (Array.isArray(c.alias) && c.alias.includes(n)));
 
@@ -244,29 +257,28 @@ async function getProfile(conn, mek, ctx) {
         sender, number, name, role, roleIcon,
         bot: await resolveBotName(conn),
         mode: String(config.WORK_TYPE || 'public'),
+        desc: (() => { try { return require('../lib/userbrand').peek(conn).desc || ''; } catch (_) { return ''; } })(),
         prefix: PREFIX(), uptime: uptimeText(), total, categories: cats.length, time: timeText()
     };
 }
 
 function profileText(pr) {
-    const p = pr.prefix || '.';
-    return `┌───〔 💎 ${pr.bot} 💎 〕───┐\n` +
-        `│ 🙋 NAME ➜ ${pr.name}\n` +
-        `│ 📱 NUMBER ➜ ${pr.number ? '+' + pr.number : '-'}\n` +
-        `│ ${pr.roleIcon} ROLE ➜ ${pr.role}\n` +
-        `├───〔 🤖 BOT INFO 〕───\n` +
-        `│ 👑 OWNER ➜ ${config.OWNER_NAME || '-'}\n` +
-        `│ 🔐 MODE ➜ ${pr.mode}\n` +
-        `│ ⚡ PREFIX ➜ ${pr.prefix}\n` +
-        `│ 📦 COMMANDS ➜ ${pr.total}\n` +
-        `│ 📁 CATEGORIES ➜ ${pr.categories}\n` +
-        `│ ⏱️ UPTIME ➜ ${pr.uptime}\n` +
-        `│ 🕒 TIME ➜ ${pr.time}\n` +
-        `├───〔 ⚙️ QUICK 〕───\n` +
-        `│ 📋 ${p}CMDLIST ➜ all commands\n` +
-        `│ 👤 ${p}PROFILE ➜ my profile\n` +
-        `│ 🏓 ${p}PING ➜ speed\n` +
-        `└────────────────┘\n`;
+    const [clock, date] = String(pr.time || '').split('·').map(x => x.trim());
+    return `✨ *${pr.bot}* ✨\n\n` +
+        `╭━━〔 👤 PROFILE 〕━━╮\n` +
+        `┃ 🙋 NAME ➜ ${pr.name}\n` +
+        `┃ ${pr.roleIcon} ROLE ➜ ${pr.role}\n` +
+        `╰━━━━━━━━━━━━╯\n\n` +
+        `╭━━〔 🤖 BOT INFO 〕━━╮\n` +
+        (pr.desc ? `┃ 📝 ${pr.desc}\n` : '') +
+        `┃ 🔐 MODE ➜ ${pr.mode}\n` +
+        `┃ ⚡ PREFIX ➜ ${pr.prefix}\n` +
+        `┃ 📦 COMMANDS ➜ ${pr.total}\n` +
+        `┃ 📁 CATEGORIES ➜ ${pr.categories}\n` +
+        `┃ ⏱️ UPTIME ➜ ${pr.uptime}\n` +
+        `┃ 🕒 TIME ➜ ${clock || '-'}\n` +
+        (date ? `┃ 📅 DATE ➜ ${date}\n` : '') +
+        `╰━━━━━━━━━━━━╯\n\n`;
 }
 
 // User ki WhatsApp DP -> uploaded imageMessage (3s timeout, 10 min cache). Na mile to null (caller bot pic use karega).
@@ -292,12 +304,12 @@ async function getProfileMedia(conn, prepareWAMessageMedia, sender) {
     } catch (_) { return null; }
 }
 
-const channelUrls = () => [...new Set([config.CHANNEL_LINK, config.FORCE_CHANNEL_1, config.FORCE_CHANNEL_2].map(x => String(x || '').trim()).filter(x => /^https?:/i.test(x)))];
+const _oldChannelUrls = () => [...new Set([config.CHANNEL_LINK, config.FORCE_CHANNEL_1, config.FORCE_CHANNEL_2].map(x => String(x || '').trim()).filter(x => /^https?:/i.test(x)))];
 
 // ---------- CARD GROUPS: WhatsApp carousel mein max 10 cards, isliye categories ko theme ke hisaab se milaya gaya ----------
 // (card 1 = profile, baaki <= 9 cards). Jo category yahan nahi likhi wo khud "MORE" card mein aa jati hai.
 const CARD_GROUPS = [
-    { title: 'OWNER & SETTINGS', icon: '👑', cats: ['owner', 'settings', 'main', 'general', 'system', 'pair', 'channel'] },
+    { title: 'OWNER & SETTINGS', icon: '👑', cats: ['owner', 'customize', 'host', 'settings', 'main', 'general', 'system', 'pair', 'channel'] },
     { title: 'VIP CLUB',        icon: '💎', cats: ['vip'] },
     { title: 'VOICE & AUDIO',    icon: '🎙️', cats: ['voice', 'voicechange', 'music', 'audioedit', 'kashmir'] },
     { title: 'VIDEO & EDIT',     icon: '🎬', cats: ['video', 'videoedit', 'photoedit'] },
@@ -349,7 +361,7 @@ const sortCmds = (list) => list.slice().sort((a, b) => {
 
 // Ek card ki body (image-2 jaisa): "➤ .COMMAND" ki lambi list, baaki ".menu <cat>" se
 function groupCardBody(g, grouped, p) {
-    const lines = [`┌──〔 ${g.icon} ${g.title} 〕──┐`];
+    const lines = [`╭━━〔 ${g.icon} ${g.title} 〕━━╮`];
     let count = 0;
     const per = Math.max(4, Math.floor(LINES_PER_CARD / g.cats.length) - (g.cats.length > 1 ? 1 : 0));
     for (const cat of g.cats) {
@@ -357,10 +369,10 @@ function groupCardBody(g, grouped, p) {
         count += list.length;
         if (g.cats.length > 1) lines.push(`│ ${CATEGORY_ICONS[cat] || '📌'} ${cat.toUpperCase()} · ${list.length}`);
         const shown = list.slice(0, per);
-        for (const x of shown) lines.push(`➤ ${p}${x.toUpperCase()}`);
+        for (const x of shown) lines.push(`➤ ${p}${x.toUpperCase()}${hintOf(x)}`);
         if (list.length > per) lines.push(`✨ +${list.length - per} MORE ➜ ${p}menu ${cat}`);
     }
-    lines.push(`└── 📦 ${count} COMMANDS ──┘`);
+    lines.push(`╰━━ 📦 ${count} COMMANDS ━━╯`);
     return lines.join('\n');
 }
 
@@ -382,22 +394,19 @@ async function buildCarousels(conn, baileys, mek, ctx) {
         footer: IM.Footer.fromObject({ text: footerText(pr.bot) }),
         nativeFlowMessage: IM.NativeFlowMessage.fromObject({ buttons })
     });
-    const chans = channelUrls();
-    const chanBtn = () => urlButton('📢 VIEW CHANNEL', chans[0] || channelUrl());
 
     const all = [];
     // Card 1: PROFILE (header = user ki DP, na mile to bot pic)
-    const owner = ownerLink(true);
-    const profBtns = [quickReply('📋 All Commands', p + 'cmdlist')];
-    if (owner) profBtns.push(urlButton('💬 Chat Owner', owner));
-    profBtns.push(chanBtn());
+    // (owner ka number/chat link menu mein nahi — sirf .ownernumber / .owner se milta hai)
+    const profBtns = [quickReply('📋 All Commands', p + 'cmdlist'), channelBtnAt(0)];
     all.push(makeCard(dpMedia || botMedia, profileText(pr) + `➡️ SWIPE RIGHT FOR ALL CATEGORIES ➡️`, profBtns));
 
     // Baaki cards: theme groups (registry se auto — nayi command khud aa jati hai)
+    let cardNo = 1;
     for (const g of cardGroups(grouped, cats)) {
         const btns = g.cats.slice().sort((a, b) => grouped[b].length - grouped[a].length).slice(0, 1)
             .map(c => quickReply(`📂 ${c.toUpperCase()} (${grouped[c].length})`, `${p}menu ${c}`));
-        btns.push(chanBtn());
+        btns.push(channelBtnAt(cardNo++));
         all.push(makeCard(botMedia, groupCardBody(g, grouped, p), btns));
     }
 
@@ -412,8 +421,8 @@ async function buildCarousels(conn, baileys, mek, ctx) {
 const CATEGORY_LINK_BUTTONS = [
     { button: '🌐 PORTFOLIO (Open first site)', url: 'https://www.google.com/search?q=ahmadshahzad+portfolio' },
     { button: '✈️ TELEGRAM',                    url: 'https://t.me/ahmadteachx' },
-    { button: '📢 VIEW CHANNEL',                get url() { return channelUrl(); } },
-    { button: '💬 CHAT OWNER',                  url: 'https://wa.me/923264931117' }
+    { button: '📢 CHANNEL 1',                   get url() { return channelAt(0); } },
+    { button: '📢 CHANNEL 2',                   get url() { return channelAt(1); } }
 ];
 
 async function sendCategoryView(conn, mek, from, cat) {
@@ -428,12 +437,12 @@ async function sendCategoryView(conn, mek, from, cat) {
 
     // lambi category kai pages mein; HAR page ke neeche 4 buttons (VIEW CHANNEL zaroor)
     const MAX = 2600;
-    const mk = (i, n) => `┌───〔 ${icon} ${cat.toUpperCase()}${n > 1 ? ` · ${i + 1}/${n}` : ''} 〕───┐\n`;
-    const foot = (n) => `└── 📦 ${list.length} COMMANDS ──┘`;
+    const mk = (i, n) => `╭━━〔 ${icon} ${cat.toUpperCase()}${n > 1 ? ` · ${i + 1}/${n}` : ''} 〕━━╮\n`;
+    const foot = (n) => `╰━━ 📦 ${list.length} COMMANDS ━━╯`;
     const chunks = [];
     let cur = '';
     for (const c of list) {
-        const row = `➤ ${p}${c.toUpperCase()}\n`;
+        const row = `➤ ${p}${c.toUpperCase()}${hintOf(c)}\n`;
         if ((mk(0, 9) + cur + row + foot()).length > MAX) { chunks.push(cur); cur = ''; }
         cur += row;
     }
@@ -539,7 +548,8 @@ async function sendOwnerCard(conn, jid, quoted, opts) {
         const { proto, prepareWAMessageMedia, generateWAMessageFromContent } = baileys;
         const IM = proto.Message.InteractiveMessage;
         const buttons = [];
-        const link = ownerLink(true);
+        const UBr = require('../lib/userbrand');
+        const link = UBr.rw(conn, ownerLink(true));
         if (link) buttons.push(urlButton('💬 Chat Owner', link));
         for (const l of OWNER_LINKS) buttons.push(urlButton(l.button, l.url));
 
@@ -561,7 +571,7 @@ async function sendOwnerCard(conn, jid, quoted, opts) {
 
         const interactive = IM.create({
             header,
-            body: IM.Body.create({ text: ownerCardText() }),
+            body: IM.Body.create({ text: require('../lib/userbrand').rw(conn, ownerCardText()) }),
             footer: IM.Footer.create({ text: footerText() }),
             nativeFlowMessage: IM.NativeFlowMessage.fromObject({ buttons })
         });
@@ -693,9 +703,9 @@ function fullListMessages(maxLen, nameOverride) {
     const blocks = [];
     for (const cat of cats) {
         const list = grouped[cat].slice().sort((a, b) => a.localeCompare(b));
-        const top = `┌───〔 ${CATEGORY_ICONS[cat] || '📌'} ${cat.toUpperCase()} · ${list.length} 〕───┐`;
-        const bottom = `└──────────────┘`;
-        const rows = list.map(x => `➤ ${p}${x.toUpperCase()}`);
+        const top = `╭━━〔 ${CATEGORY_ICONS[cat] || '📌'} ${cat.toUpperCase()} · ${list.length} 〕━━╮`;
+        const bottom = `╰━━━━━━━━━━━━╯`;
+        const rows = list.map(x => `➤ ${p}${x.toUpperCase()}${hintOf(x)}`);
         // lambi category ko poore boxes mein todo
         let cur = [];
         const flush = () => { if (cur.length) blocks.push(top + '\n' + cur.join('\n') + '\n' + bottom); cur = []; };

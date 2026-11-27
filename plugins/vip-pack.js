@@ -1,5 +1,5 @@
 // plugins/vip-pack.js — .fancyname / .vipsymbols  +  PRANK commands (sab fake aur harmless, aakhir mein "PRANK!" bata dete hain)
-const { cmd } = require('../arslan');
+const { cmd } = require('../ahmadcore');
 const config = require('../config');
 const vip = require('../lib/vipfonts');
 

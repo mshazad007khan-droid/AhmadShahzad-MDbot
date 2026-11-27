@@ -1,7 +1,7 @@
 // plugins/massfollow.js
 // 𝐀𝐡𝐦𝐚𝐝𝐒𝐡𝐚𝐡𝐳𝐚𝐝-𝐌𝐃 — Mass channel follow (all connected accounts)
 
-const { cmd } = require('../arslan');
+const { cmd } = require('../ahmadcore');
 
 // ═══════════════════════════════════════════
 //  CONFIG
