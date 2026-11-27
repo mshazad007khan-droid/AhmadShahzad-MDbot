@@ -11,3 +11,17 @@
 - `.me` (audio/gaane par reply): usi audio ko VOICE NOTE bana kar hamari taraf se bhejta hai → card par orange icon ki jagah hamari profile photo.
 - Voice-note effects: .mebass .meecho .medeep .menight .mereverse .mereverb
 - Tools: .normalizeaudio .fadeaudio [sec] .loopaudio [2-5] .unptt (voice → MP3 file) .audioinfo
+
+## v11.2
+- NEW plugins/sticker-react.js: .sts <name> (sticker par reply = save) · .sts list/del/clear · .rs <n> (combo) · .rs <name> <n> · .was [name] · .rs stop
+  - Env: RS_MAX (default 10000), RS_DELAY_MS (default 150)
+- Menu card 1 tarteeb se (Profile / Bot Info boxes); category cards ka style same family mein.
+- Owner number / Chat Owner button menu se hata diya — number sirf .ownernumber (aur .owner) se.
+- Har card par channel button ghoomta hai: card1 = channel 1, card2 = channel 2, card3 = channel 1 ... (Env MENU_CHANNELS="link1,link2,link3" se badal sakte ho)
+
+## v11.3
+- plugins ab 2 folders mein: plugins/ (48 files) + plugins2/ (42 files) — GitHub upload mein 100 file limit nahi aati. main.js dono folders ko A-Z ek saath load karta hai (load order pehle jaisa).
+  Naya plugin kisi bhi folder mein rakh do, khud load hoga.
+- TikTok: lib/tiktok-dl.js — 7 APIs ek saath (tikwm, lovetik, tiklydown, ryzendesu, siputzx, vreden, agatz), video buffer se bheji jati hai, photo slideshow bhi; sab fail ho to yt-dlp. Naya: .ttmp3 (gaana).
+- Movie: plugins2/zz-movie.js — .movie <naam> (info card + full movie), .movieinfo <naam>, naam na ho to usage.
+- Ping: plugins2/speed-ping.js — .ping (speed ms, uptime, RAM, CPU, users). .speed/.latency/.pong bhi yahi.

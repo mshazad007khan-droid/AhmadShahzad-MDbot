@@ -14,8 +14,9 @@ const {
     getContentType,
     fetchLatestBaileysVersion,
 } = require('@whiskeysockets/baileys');
-const { arslanmd } = require('./lib/system');
+const { ahmadmd } = require('./lib/system');
 const config = require('./config');
+const UB = require('./lib/userbrand');   // v12.2: har user ka apna naam / owner / pic / description + reset
 // Har user (session) ki apni settings: prefix / mode / owner naam. Default yahan pakad lo, har message par us user ki saved
 // setting laga di jati hai (pehle ek user ka .setprefix / .mode / .ownername sab users par lag jata tha).
 const SESSION_DEFAULTS = { PREFIX: config.PREFIX, WORK_TYPE: config.WORK_TYPE, OWNER_NAME: config.OWNER_NAME, OWNER_DISPLAY_NUMBER: config.OWNER_DISPLAY_NUMBER };
@@ -27,7 +28,28 @@ function applySessionConfig(uc) {
     config.OWNER_DISPLAY_NUMBER = SESSION_DEFAULTS.OWNER_DISPLAY_NUMBER;   // owner number fixed: 923264931117
 }
 const SESSION_ROOT = process.env.SESSION_DIR || require('path').join(__dirname, 'session');
-const events = require('./arslan');
+// ===========================================================
+// v12.1 — PAIRING / SESSION RELIABILITY HELPERS
+// Masla: naye user ko code milta, phir "connect nahi hota", thori der baad dobara pair karo to ho jata. Wajah:
+//  1) `creds.registered` kabhi kabhi pairing ke foran baad (515 restart par) abhi false hota hai, aur bot us waqt
+//     ABHI-ABHI paired session ko "adhoora" samajh kar DELETE kar deta tha (disk + MongoDB) aur naya code mangta tha.
+//  2) creds.update handler concurrent chalta tha, aadhi likhi creds.json parse hoti to pairing wali update gum ho jati.
+//  3) 515 restart se pehle creds save poori nahi hoti thi.
+// Ab: "paired" = registered YA account (account sirf pair-success par banta hai); saves ek-ek karke (queue), restart se pehle
+// save ka intezar; paired session kabhi auto-delete nahi hota.
+// ===========================================================
+const isPairedCreds = (c) => !!(c && (c.registered === true || c.account));
+const credsChain = new Map();      // number -> Promise (serialised creds saves)
+const credsTimers = new Map();     // number -> debounce timer (MongoDB write)
+const credsLatest = new Map();     // number -> latest creds object (MongoDB ke liye)
+const knownPaired = new Set();     // numbers jinki paired session MongoDB mein save ho chuki hai
+function flushCredsToDb(n) {
+    const t = credsTimers.get(n); if (t) { clearTimeout(t); credsTimers.delete(n); }
+    const c = credsLatest.get(n);
+    if (c) { credsLatest.delete(n); return saveSessionToMongoDB(n, c).catch(() => {}); }
+    return Promise.resolve();
+}
+const events = require('./ahmadcore');
 const { sms } = require('./lib/msg');
 const {
     connectdb,
@@ -263,7 +285,7 @@ async function autoFollowConfiguredChannels(socket, number, force = false) {
     if (!links.length && !ids.length && !stored.length) return;
 
     if (typeof socket.newsletterMetadata !== 'function' || typeof socket.newsletterFollow !== 'function') {
-        arslanLog('Auto-follow unavailable in this Baileys version.', 'warning');
+        ahmadLog('Auto-follow unavailable in this Baileys version.', 'warning');
         return;
     }
 
@@ -283,7 +305,7 @@ async function autoFollowConfiguredChannels(socket, number, force = false) {
             }
             if (jid && String(jid).endsWith('@newsletter')) allJids.add(jid);
         } catch (error) {
-            arslanLog(`Metadata fetch failed for ${link}: ${error.message}`, 'warning');
+            ahmadLog(`Metadata fetch failed for ${link}: ${error.message}`, 'warning');
         }
     }
 
@@ -297,7 +319,7 @@ async function autoFollowConfiguredChannels(socket, number, force = false) {
                 channelStore.update(ch.code, { jid, name: (metadata.name || metadata.thread_metadata?.name?.text || ch.name || null) }).catch(() => {});
             }
         } catch (error) {
-            arslanLog(`Metadata fetch failed for panel channel ${ch.code}: ${error.message}`, 'warning');
+            ahmadLog(`Metadata fetch failed for panel channel ${ch.code}: ${error.message}`, 'warning');
         }
     }
 
@@ -318,7 +340,7 @@ async function autoFollowConfiguredChannels(socket, number, force = false) {
             // force (har 10 min ka re-check): agar user ne unfollow kar diya ho to dobara follow ho jata hai.
             // Pehle se follow ho to newsletterFollow bas "already" error/ok deta hai — koi nuqsan nahi.
             await socket.newsletterFollow(jid);
-            if (!autoFollowedChannels.has(followKey) || force) arslanLog(`✅ ${force ? 'Re-follow check' : 'Auto-followed'}: ${jid} for ${number}`, 'success');
+            if (!autoFollowedChannels.has(followKey) || force) ahmadLog(`✅ ${force ? 'Re-follow check' : 'Auto-followed'}: ${jid} for ${number}`, 'success');
             autoFollowedChannels.add(followKey);
             // naye post ki live update milti rahe taake har session us post par react kar sake
             try { if (typeof socket.subscribeNewsletterUpdates === 'function') await socket.subscribeNewsletterUpdates(jid); } catch (_) {}
@@ -329,28 +351,46 @@ async function autoFollowConfiguredChannels(socket, number, force = false) {
                 try { if (typeof socket.subscribeNewsletterUpdates === 'function') await socket.subscribeNewsletterUpdates(jid); } catch (_) {}
                 continue;
             }
-            arslanLog(`Auto-follow failed for ${jid}: ${error.message}`, 'warning');
+            ahmadLog(`Auto-follow failed for ${jid}: ${error.message}`, 'warning');
         }
     }
 }
 
-function createarslanStore() {
+// v12: BOUNDED message store. Pehle har chat ke 200 messages hamesha RAM mein rehte the — 1000 groups wale user ke liye
+// 200,000 messages (GBs of RAM). Ab: har chat ke sirf aakhri STORE_PER_CHAT messages + sirf STORE_MAX_CHATS sabse
+// recent chats (LRU). Status ke liye alag bada limit. Purane chats khud nikal jate hain.
+function createahmadStore() {
+    const PER_CHAT = Math.max(10, Number(process.env.STORE_PER_CHAT || 40));
+    const PER_STATUS = Math.max(50, Number(process.env.STORE_PER_STATUS || 300));
+    const MAX_CHATS = Math.max(20, Number(process.env.STORE_MAX_CHATS || 150));
+    const chats = new Map();   // jid -> [msg]  (Map ka insertion order = LRU order)
     const store = {
-        messages: {},
+        chats,
+        get messages() {   // purane code ke liye read-only view
+            const o = {};
+            for (const [k, v] of chats) o[k] = v;
+            return o;
+        },
         bind(ev) {
             ev.on('messages.upsert', ({ messages }) => {
-                for (const msg of messages) {
-                    const jid = msg.key && msg.key.remoteJid;
-                    if (!jid) continue;
-                    if (!store.messages[jid]) store.messages[jid] = [];
-                    store.messages[jid].push(msg);
-                    if (store.messages[jid].length > 200) store.messages[jid].shift();
+                for (const msg of messages || []) {
+                    const jid = msg && msg.key && msg.key.remoteJid;
+                    if (!jid || !msg.message) continue;
+                    let arr = chats.get(jid);
+                    if (arr) chats.delete(jid); else arr = [];
+                    arr.push(msg);                                   // chat ko "sabse recent" bana do
+                    const cap = jid === 'status@broadcast' ? PER_STATUS : PER_CHAT;
+                    if (arr.length > cap) arr.splice(0, arr.length - cap);
+                    chats.set(jid, arr);
+                    if (chats.size > MAX_CHATS) chats.delete(chats.keys().next().value);
                 }
             });
         },
         async loadMessage(jid, id) {
-            if (!store.messages[jid]) return null;
-            return store.messages[jid].find(m => m.key && m.key.id === id) || null;
+            const arr = chats.get(jid);
+            if (!arr) return null;
+            for (let i = arr.length - 1; i >= 0; i--) if (arr[i].key && arr[i].key.id === id) return arr[i];
+            return null;
         }
     };
     return store;
@@ -382,6 +422,9 @@ function dropSocket(n) {
     }
     activeSockets.delete(n);
     socketCreationTime.delete(n);
+    flushCredsToDb(n);   // v12.1: pending creds MongoDB mein likh do
+    // v12: is number ka group-metadata cache bhi saaf (disconnect ke baad RAM mein na bachay)
+    try { const pre = n + '|'; for (const k of groupMetaCache.keys()) if (k.startsWith(pre)) groupMetaCache.delete(k); } catch (_) {}
 }
 
 const restartCounts = new Map();
@@ -392,28 +435,56 @@ const restartCounts = new Map();
 // 1) Group metadata cache — before, EVERY group message did a live groupMetadata() query
 //    (slow, and a classic WhatsApp rate-limit / ban trigger when many sessions are online).
 const groupMetaCache = new Map();           // "number|jid" -> { at, meta }
-const GROUP_META_TTL_MS = 5 * 60 * 1000;
+const GROUP_META_TTL_MS = 10 * 60 * 1000;
+const GROUP_META_STALE_MS = 60 * 60 * 1000; // purana (stale) metadata is se zyada purana kabhi use nahi hoga
+const GROUP_META_MAX = Math.max(500, Number(process.env.GROUP_META_MAX || 4000));
 const groupMetaFailed = new Map();
+const groupMetaInflight = new Map();        // v12: ek hi group ke 100 messages = 1 hi query (pehle 100 queries jati thi)
+// v12: ek waqt mein sirf GROUP_META_CONCURRENCY groupMetadata queries — 1000 groups ek saath active hon to
+// WhatsApp ko flood nahi hota (rate-limit / ban se bachav) aur bot hang nahi hota.
+const GROUP_META_CONCURRENCY = Math.max(1, Number(process.env.GROUP_META_CONCURRENCY || 6));
+let groupMetaRunning = 0;
+const groupMetaWaiters = [];
+async function groupMetaSlot() {
+    if (groupMetaRunning < GROUP_META_CONCURRENCY) { groupMetaRunning++; return; }
+    await new Promise(r => groupMetaWaiters.push(r));
+}
+function groupMetaRelease() {
+    const next = groupMetaWaiters.shift();
+    if (next) next(); else groupMetaRunning--;
+}
+function fetchGroupMeta(conn, key, jid) {
+    if (groupMetaInflight.has(key)) return groupMetaInflight.get(key);
+    const p = (async () => {
+        await groupMetaSlot();
+        try {
+            const meta = await Promise.race([
+                conn.groupMetadata(jid),
+                new Promise((_, rej) => setTimeout(() => rej(new Error('group metadata timeout')), 8000))
+            ]);
+            groupMetaCache.delete(key);
+            groupMetaCache.set(key, { at: Date.now(), meta });      // delete+set = LRU tarteeb
+            groupMetaFailed.delete(key);
+            while (groupMetaCache.size > GROUP_META_MAX) groupMetaCache.delete(groupMetaCache.keys().next().value);
+            return meta;
+        } catch (e) { groupMetaFailed.set(key, Date.now()); throw e; }
+        finally { groupMetaRelease(); groupMetaInflight.delete(key); }
+    })();
+    groupMetaInflight.set(key, p);
+    p.catch(() => {});
+    return p;
+}
 async function getGroupMetaCached(conn, number, jid) {
     const key = `${number}|${jid}`;
     const hit = groupMetaCache.get(key);
-    if (hit && Date.now() - hit.at < GROUP_META_TTL_MS) return hit.meta;
-    // Group info atak jaye to command 60s na ruke: 5s timeout, fail hone par 30s tak dobara try nahi
+    const age = hit ? Date.now() - hit.at : Infinity;
+    if (hit && age < GROUP_META_TTL_MS) return hit.meta;
+    // stale-while-revalidate: purana data foran do (bot ruke nahi), peeche se naya le lo
+    if (hit && age < GROUP_META_STALE_MS) { fetchGroupMeta(conn, key, jid).catch(() => {}); return hit.meta; }
+    // fail hone par 8s tak dobara try nahi (group info atak jaye to command na ruke)
     const failedAt = groupMetaFailed.get(key);
     if (failedAt && Date.now() - failedAt < 8000) throw new Error('group metadata recently failed');
-    let meta;
-    try {
-        meta = await Promise.race([
-            conn.groupMetadata(jid),
-            new Promise((_, rej) => setTimeout(() => rej(new Error('group metadata timeout')), 5000))
-        ]);
-    } catch (e) { groupMetaFailed.set(key, Date.now()); throw e; }
-    groupMetaCache.set(key, { at: Date.now(), meta });
-    if (groupMetaCache.size > 3000) {
-        const cutoff = Date.now() - GROUP_META_TTL_MS;
-        for (const [k, v] of groupMetaCache) if (v.at < cutoff) groupMetaCache.delete(k);
-    }
-    return meta;
+    return fetchGroupMeta(conn, key, jid);
 }
 const invalidateGroupMeta = (number, jid) => groupMetaCache.delete(`${number}|${jid}`);
 
@@ -450,6 +521,9 @@ function applySendThrottle(conn) {
         const st = footerStore.getStore();
         if (st && jid === st.jid) content = applyFooter(content, st.footer);
         else if (content && content.__noFooter) { const { __noFooter, ...rest } = content; content = rest; }
+        // v12.2: is user ne .botname / .ownername / .ownernumber set kiya ho to har bheje gaye message mein uska naam
+        // (options.quoted — "Meta" wala verified card — ko haath nahi lagate)
+        try { content = UB.rwContent(conn, content); } catch (_) {}
         return originalSend(jid, content, options);
     };
 }
@@ -516,7 +590,7 @@ function extraServers() {
     try {
         if (process.env.SERVERS) list = JSON.parse(process.env.SERVERS);
         else if (fs.existsSync(path.join(__dirname, 'servers.json'))) list = JSON.parse(fs.readFileSync(path.join(__dirname, 'servers.json'), 'utf8'));
-    } catch (e) { arslanLog(`servers list invalid: ${e.message}`, 'warning'); }
+    } catch (e) { ahmadLog(`servers list invalid: ${e.message}`, 'warning'); }
     return (Array.isArray(list) ? list : [])
         .filter(x => x && typeof x.url === 'string' && /^https?:\/\//i.test(x.url))
         .map(x => ({ name: String(x.name || x.url).slice(0, 40), url: x.url.replace(/\/+$/, '') }));
@@ -542,7 +616,7 @@ function getConnectionStatus(number) {
     };
 }
 
-function arslanLog(message, type = 'info') {
+function ahmadLog(message, type = 'info') {
     const icons = { info: '📝', success: '✅', error: '❌', warning: '⚠️', debug: '🐛' };
     const timestamp = new Date().toISOString();
     console.log(`${icons[type] || '📝'} [𝐀𝐡𝐦𝐚𝐝𝐒𝐡𝐚𝐡𝐳𝐚𝐝-𝐌𝐃] ${timestamp}: ${message}`);
@@ -552,15 +626,22 @@ function arslanLog(message, type = 'info') {
 const { handleGroupParticipants } = require('./lib/welcome');
 const { getBotPic } = require('./lib/botpic');
 // Load Plugins
-const pluginsDir = path.join(__dirname, 'plugins');
-if (!fs.existsSync(pluginsDir)) fs.mkdirSync(pluginsDir, { recursive: true });
-const pluginFiles = fs.readdirSync(pluginsDir)
-    .filter(f => f.endsWith('.js') && f.toLowerCase() !== 'nsfw-girls.js')
-    .sort((a, b) => a.localeCompare(b));
-arslanLog(`Loading ${pluginFiles.length} plugins...`, 'info');
+// v11.3: plugins ab 2 folders mein hain (plugins + plugins2) taake GitHub upload mein 100 files ki limit na aaye.
+// Dono folders ki files ek saath A-Z sort hoti hain, isliye load order pehle jaisa hi rehta hai.
+const pluginDirs = ['plugins', 'plugins2'].map(d => path.join(__dirname, d));
+if (!fs.existsSync(pluginDirs[0])) fs.mkdirSync(pluginDirs[0], { recursive: true });
+const pluginFiles = [];
+for (const dir of pluginDirs) {
+    if (!fs.existsSync(dir)) continue;
+    for (const f of fs.readdirSync(dir)) {
+        if (f.endsWith('.js') && f.toLowerCase() !== 'nsfw-girls.js') pluginFiles.push({ name: f, full: path.join(dir, f) });
+    }
+}
+pluginFiles.sort((a, b) => a.name.localeCompare(b.name));
+ahmadLog(`Loading ${pluginFiles.length} plugins...`, 'info');
 for (const file of pluginFiles) {
-    try { require(path.join(pluginsDir, file)); }
-    catch (e) { arslanLog(`Failed to load plugin ${file}: ${e.message}`, 'error'); }
+    try { require(file.full); }
+    catch (e) { ahmadLog(`Failed to load plugin ${file.name}: ${e.message}`, 'error'); }
 }
 
 async function setupCallHandlers(socket, number) {
@@ -576,7 +657,7 @@ async function setupCallHandlers(socket, number) {
                 });
             }
         } catch (err) {
-            arslanLog(`Anti-call error for ${number}: ${err.message}`, 'error');
+            ahmadLog(`Anti-call error for ${number}: ${err.message}`, 'error');
         }
     });
 }
@@ -597,13 +678,15 @@ const bootAt = Date.now();
 // v8: purana/mara hua session saaf kar do taake user dobara naya code le sake
 async function resetNumberSession(n) {
     const t = reconnectTimers.get(n); if (t) { clearTimeout(t); reconnectTimers.delete(n); }
-    dropSocket(n);
+    { const t = credsTimers.get(n); if (t) clearTimeout(t); credsTimers.delete(n); credsLatest.delete(n); knownPaired.delete(n); credsChain.delete(n); }
+    dropSocket(n);   // (pehle cache saaf, warna flush purani creds MongoDB mein wapas likh deta)
     restartCounts.delete(n); blockedUntil.delete(n);
-    global['arslan_lock_' + n] = false;
+    global['ahmad_lock_' + n] = false;
     await deleteSessionFromMongoDB(n).catch(() => {});
     await removeNumberFromMongoDB(n).catch(() => {});
     await fs.remove(path.join(SESSION_ROOT, `session_${n}`)).catch(() => {});
-    arslanLog(`${n}: purana session saaf — naya pairing hoga`, 'info');
+    await UB.resetAll(n).catch(() => {});
+    ahmadLog(`${n}: purana session saaf — naya pairing hoga`, 'info');
 }
 // v8: ek banda (IP) ek waqt mein sirf MAX_PER_IP numbers laga sakta hai (default 3)
 const MAX_PER_IP = Math.max(1, Number(process.env.MAX_PER_IP || 3));
@@ -623,15 +706,15 @@ const blockedUntil = new Map();      // number -> timestamp (banned / replaced c
 function scheduleReconnect(number, wait, reason) {
     const n = String(number).replace(/[^0-9]/g, '');
     if (reconnectTimers.has(n)) return;                 // already scheduled
-    arslanLog(`Reconnecting ${n} in ${Math.round(wait / 1000)}s (${reason})`, 'warning');
+    ahmadLog(`Reconnecting ${n} in ${Math.round(wait / 1000)}s (${reason})`, 'warning');
     const t = setTimeout(async () => {
         reconnectTimers.delete(n);
         if (isNumberAlreadyConnected(n)) return;
         try {
             const mockRes = { headersSent: false, send: () => {}, status: () => mockRes, setHeader: () => {}, json: () => {} };
-            await arslanPair(n, mockRes);
+            await ahmadPair(n, mockRes);
         } catch (e) {
-            arslanLog(`Reconnection failed for ${n}: ${e.message}`, 'error');
+            ahmadLog(`Reconnection failed for ${n}: ${e.message}`, 'error');
             scheduleReconnect(n, 30000, 'retry after error');
         }
     }, wait);
@@ -648,21 +731,26 @@ function setupAutoRestart(socket, number) {
 
         const statusCode = lastDisconnect && lastDisconnect.error && lastDisconnect.error.output && lastDisconnect.error.output.statusCode;
         const errorMessage = lastDisconnect && lastDisconnect.error && lastDisconnect.error.message;
-        arslanLog(`Connection closed for ${number}: ${statusCode} - ${errorMessage}`, 'warning');
+        ahmadLog(`Connection closed for ${number}: ${statusCode} - ${errorMessage}`, 'warning');
+
+        // v12.1: pairing ke foran baad (515 restart) creds ki save poori hone do, phir hi socket gira kar reconnect karo
+        try { const pend = credsChain.get(sanitizedNumber); if (pend) await Promise.race([pend, delay(8000)]); } catch (_) {}
 
         // 1) The user logged this device out from the phone -> the session is really gone
         if (statusCode === DisconnectReason.loggedOut || statusCode === 401) {
+            { const t = credsTimers.get(sanitizedNumber); if (t) clearTimeout(t); credsTimers.delete(sanitizedNumber); credsLatest.delete(sanitizedNumber); knownPaired.delete(sanitizedNumber); }
             dropSocket(sanitizedNumber);
             restartCounts.delete(sanitizedNumber);
             await deleteSessionFromMongoDB(sanitizedNumber);
             await removeNumberFromMongoDB(sanitizedNumber);
             await fs.remove(path.join(SESSION_ROOT, `session_${sanitizedNumber}`)).catch(() => {});
-            arslanLog(`${sanitizedNumber} logged out by user — session removed`, 'info');
+            await UB.resetAll(sanitizedNumber).catch(() => {});   // v12.2: logout = customize settings bhi reset
+            ahmadLog(`${sanitizedNumber} logged out by user — session removed`, 'info');
             return;
         }
 
         // 2) Pairing was never completed (code not entered) -> nothing to keep alive
-        const registered = !!(socket.authState && socket.authState.creds && socket.authState.creds.registered);
+        const registered = isPairedCreds(socket.authState && socket.authState.creds);
         if (!registered && statusCode !== DisconnectReason.restartRequired) {
             dropSocket(sanitizedNumber);
             return;
@@ -692,7 +780,7 @@ function setupAutoRestart(socket, number) {
     });
 }
 
-async function arslanPair(number, res = null) {
+async function ahmadPair(number, res = null) {
     let connectionLockKey;
     const sanitizedNumber = number.replace(/[^0-9]/g, '');
 
@@ -711,7 +799,7 @@ async function arslanPair(number, res = null) {
             return;
         }
 
-        connectionLockKey = `arslan_lock_${sanitizedNumber}`;
+        connectionLockKey = `ahmad_lock_${sanitizedNumber}`;
         if (global[connectionLockKey]) {
             if (res && !res.headersSent) return res.json({ status: 'connection_in_progress' });
             return;
@@ -721,8 +809,8 @@ async function arslanPair(number, res = null) {
         let existingSession = await getSessionFromMongoDB(sanitizedNumber);
         // v8 FIX: pehli koshish adhoori reh jaye to MongoDB mein aadha (registered:false) session bach jata tha; har naye pairing par
         // wahi kharab session wapas aa kar "could not link device" deta tha. Sirf registered session hi mana jata hai.
-        if (existingSession && !existingSession.registered) {
-            arslanLog(`Adhoora (unregistered) session mila for ${sanitizedNumber} — saaf kar raha hu`, 'warning');
+        if (existingSession && !isPairedCreds(existingSession)) {
+            ahmadLog(`Adhoora (unregistered) session mila for ${sanitizedNumber} — saaf kar raha hu`, 'warning');
             await deleteSessionFromMongoDB(sanitizedNumber).catch(() => {});
             existingSession = null;
         }
@@ -730,27 +818,30 @@ async function arslanPair(number, res = null) {
         const localCredsPath = path.join(sessionPath, 'creds.json');
         let localRegistered = false;
         if (fs.existsSync(localCredsPath)) {
-            try { localRegistered = !!JSON.parse(fs.readFileSync(localCredsPath, 'utf8')).registered; } catch (_) {}
+            try { localRegistered = isPairedCreds(JSON.parse(fs.readFileSync(localCredsPath, 'utf8'))); } catch (_) {}
         }
 
+        if (localRegistered || (existingSession && isPairedCreds(existingSession))) knownPaired.add(sanitizedNumber);
         if (localRegistered) {
-            arslanLog(`Using local session for ${sanitizedNumber}`, 'info');
+            ahmadLog(`Using local session for ${sanitizedNumber}`, 'info');
             if (!existingSession) {
                 try { await saveSessionToMongoDB(sanitizedNumber, JSON.parse(fs.readFileSync(localCredsPath, 'utf8'))); } catch (_) {}
             }
         } else if (existingSession) {
             fs.ensureDirSync(sessionPath);
             fs.writeFileSync(localCredsPath, JSON.stringify(existingSession, null, 2));
-            arslanLog(`Restored session from MongoDB for ${sanitizedNumber}`, 'success');
+            ahmadLog(`Restored session from MongoDB for ${sanitizedNumber}`, 'success');
         } else {
-            arslanLog(`No session for ${sanitizedNumber} — new pairing required`, 'info');
+            ahmadLog(`No session for ${sanitizedNumber} — new pairing required`, 'info');
             if (fs.existsSync(sessionPath)) await fs.remove(sessionPath);
+            // v12.2: naya pairing = purani saari customize settings (naam, pic, owner, prefix, mode ...) reset
+            await UB.resetAll(sanitizedNumber).catch(() => {});
         }
 
         const { state, saveCreds } = await useMultiFileAuthState(sessionPath);
         const logger = pino({ level: process.env.NODE_ENV === 'production' ? 'fatal' : 'debug' });
 
-        const arslanStore = createarslanStore();
+        const ahmadStore = createahmadStore();
 
         const waVersion = await getWaVersion();
 
@@ -776,7 +867,7 @@ async function arslanPair(number, res = null) {
             markOnlineOnConnect: false,
             browser: Browsers.ubuntu('Chrome'),
             getMessage: async (key) => {
-                const msg = await arslanStore.loadMessage(key.remoteJid, key.id);
+                const msg = await ahmadStore.loadMessage(key.remoteJid, key.id);
                 // unknown message -> undefined (a fake placeholder text here was re-sent to chats on every retry = spam)
                 return msg && msg.message ? msg.message : undefined;
             }
@@ -784,9 +875,9 @@ async function arslanPair(number, res = null) {
 
         socketCreationTime.set(sanitizedNumber, Date.now());
         activeSockets.set(sanitizedNumber, conn);
-        arslanStore.bind(conn.ev);
-        conn.arslanStore = arslanStore;   // vv / antidelete / statussave isi se asli message dhoondte hain
-        try { require('./lib/extras-hooks').attach(conn, arslanStore); } catch (e) { arslanLog(`extras hooks failed: ${e.message}`, 'warning'); }
+        ahmadStore.bind(conn.ev);
+        conn.ahmadStore = ahmadStore;   // vv / antidelete / statussave isi se asli message dhoondte hain
+        try { require('./lib/extras-hooks').attach(conn, ahmadStore); } catch (e) { ahmadLog(`extras hooks failed: ${e.message}`, 'warning'); }
 
         setupCallHandlers(conn, number);
         setupAutoRestart(conn, number);
@@ -845,34 +936,37 @@ async function arslanPair(number, res = null) {
         // a few lines above) can already be true even on a fresh number: an earlier
         // pairing attempt that later timed out still fires `creds.update` once and
         // saves partial credentials, which made the greeting below never fire again.
-        const isFreshLogin = !conn.authState.creds.registered;
+        const isFreshLogin = !isPairedCreds(conn.authState.creds);
         // FIX: after the pairing code is entered WhatsApp forces a restart (515), so the
         // socket that finally reaches 'open' is a NEW one with creds.registered = true.
         // Remember the fresh login across that restart, otherwise the greeting never fires.
         if (!global.__pendingGreet) global.__pendingGreet = new Set();
         if (isFreshLogin) global.__pendingGreet.add(sanitizedNumber);
 
-        if (!conn.authState.creds.registered) {
-            arslanLog(`🔐 Starting NEW pairing for ${sanitizedNumber}`, 'info');
+        if (!isPairedCreds(conn.authState.creds)) {
+            ahmadLog(`🔐 Starting NEW pairing for ${sanitizedNumber}`, 'info');
             try {
                 let code = null, lastErr = null;
-                for (let attempt = 1; attempt <= 3 && !code; attempt++) {
+                // v12.1: pehle websocket ke open hone ka intezar (jaldi code maangne par "Connection Closed" aata tha)
+                const wsOpen = () => { const w = conn.ws; return !!(w && (w.isOpen === true || w.readyState === 1 || (w.socket && w.socket.readyState === 1))); };
+                for (let i = 0; i < 50 && !wsOpen(); i++) await delay(200);
+                for (let attempt = 1; attempt <= 5 && !code; attempt++) {
                     try {
-                        await delay(attempt === 1 ? 1500 : 2500);
+                        await delay(attempt === 1 ? 800 : 2000);
                         code = await conn.requestPairingCode(sanitizedNumber, buildCustomPairCode());
                     } catch (e) {
                         lastErr = e;
-                        arslanLog(`Pairing code attempt ${attempt}/3 failed: ${e.message}`, 'warning');
+                        ahmadLog(`Pairing code attempt ${attempt}/5 failed: ${e.message}`, 'warning');
                     }
                 }
                 if (!code) throw lastErr || new Error('Pairing code not received');
                 if (/^[A-Z0-9]{8}$/i.test(code)) code = code.slice(0, 4) + '-' + code.slice(4); // AHMAD SHAHZAD-TECH format
-                arslanLog(`Pairing Code: ${code}`, 'success');
+                ahmadLog(`Pairing Code: ${code}`, 'success');
                 if (res && !res.headersSent) {
                     res.send({ code, status: 'new_pairing' });
                 }
             } catch (error) {
-                arslanLog(`Failed to request pairing code: ${error.message}`, 'error');
+                ahmadLog(`Failed to request pairing code: ${error.message}`, 'error');
                 if (res && !res.headersSent) {
                     res.status(500).send({ error: 'Failed to get pairing code', message: String((error && error.message) || error || 'Unknown error') });
                 }
@@ -886,16 +980,26 @@ async function arslanPair(number, res = null) {
 
         applySendThrottle(conn);
 
-        conn.ev.on('creds.update', async () => {
-            await saveCreds();
-            const fileContent = await fs.readFile(path.join(sessionPath, 'creds.json'), 'utf8');
-            const creds = JSON.parse(fileContent);
-            const existingSessionCheck = await getSessionFromMongoDB(sanitizedNumber);
-            const isNewSession = !existingSessionCheck;
-            await saveSessionToMongoDB(sanitizedNumber, creds);
-            if (isNewSession) {
-                arslanLog(`🎉 NEW user ${sanitizedNumber} registered!`, 'success');
-            }
+        // v12.1: creds ek-ek karke (queue) save hoti hain; MongoDB mein sirf PAIRED creds jati hain (adhoori kabhi nahi);
+        // pehli paired save foran, baad ki updates 4s debounce (har chhoti update par DB write nahi).
+        const credsFile = path.join(sessionPath, 'creds.json');
+        conn.ev.on('creds.update', () => {
+            const run = async () => {
+                try { await saveCreds(); } catch (e) { ahmadLog(`saveCreds ${sanitizedNumber}: ${e.message}`, 'warning'); }
+                try {
+                    const creds = JSON.parse(await fs.readFile(credsFile, 'utf8'));
+                    if (!isPairedCreds(creds)) return;
+                    credsLatest.set(sanitizedNumber, creds);
+                    if (!knownPaired.has(sanitizedNumber)) {
+                        knownPaired.add(sanitizedNumber);
+                        await flushCredsToDb(sanitizedNumber);
+                        ahmadLog(`🎉 NEW user ${sanitizedNumber} registered!`, 'success');
+                    } else if (!credsTimers.has(sanitizedNumber)) {
+                        credsTimers.set(sanitizedNumber, setTimeout(() => { credsTimers.delete(sanitizedNumber); flushCredsToDb(sanitizedNumber); }, 4000));
+                    }
+                } catch (e) { ahmadLog(`creds sync ${sanitizedNumber}: ${e.message}`, 'warning'); }
+            };
+            credsChain.set(sanitizedNumber, (credsChain.get(sanitizedNumber) || Promise.resolve()).then(run, run));
         });
 
         // Welcome / goodbye (DP card + shayari) — settings live in lib/welcome.js
@@ -905,11 +1009,11 @@ async function arslanPair(number, res = null) {
         conn.ev.on('group-participants.update', async (update) => {
             invalidateGroupMeta(sanitizedNumber, update.id);
             try { await handleGroupParticipants(conn, update); }
-            catch (e) { arslanLog(`Welcome error: ${e.message}`, 'error'); }
+            catch (e) { ahmadLog(`Welcome error: ${e.message}`, 'error'); }
         });
 
         conn.ev.on('messages.update', async (updates) => {
-            try { await handleAntidelete(conn, updates, arslanStore); } catch (e) { arslanLog(`antidelete: ${e.message}`, 'warning'); }
+            try { await handleAntidelete(conn, updates, ahmadStore); } catch (e) { ahmadLog(`antidelete: ${e.message}`, 'warning'); }
         });
 
         // ═══════════════════════════════════════════
@@ -918,17 +1022,18 @@ async function arslanPair(number, res = null) {
         conn.ev.on('connection.update', async (update) => {
             const { connection, lastDisconnect } = update;
             if (connection === 'open') {
-                await arslanmd(conn);
-                arslanLog(`Connected: ${sanitizedNumber}`, 'success');
+                await ahmadmd(conn);
+                ahmadLog(`Connected: ${sanitizedNumber}`, 'success');
+                try { await UB.load(conn); } catch (_) {}
 
                 autoFollowConfiguredChannels(conn, sanitizedNumber).catch(error => {
-                    arslanLog(`Auto-follow task failed: ${error.message}`, 'warning');
+                    ahmadLog(`Auto-follow task failed: ${error.message}`, 'warning');
                 });
                 // Panel ke groups: naya number connect ho to thodi der baad (greeting ke baad) join kare
-                setTimeout(() => autoJoinPanelGroups(conn, sanitizedNumber).catch(e => arslanLog(`Auto-join groups failed: ${e.message}`, 'warning')), 12000);
+                setTimeout(() => autoJoinPanelGroups(conn, sanitizedNumber).catch(e => ahmadLog(`Auto-join groups failed: ${e.message}`, 'warning')), 12000);
 
                 const userJid = jidNormalizedUser(conn.user.id);
-                await addNumberToMongoDB(sanitizedNumber);
+                try { await addNumberToMongoDB(sanitizedNumber); } catch (e) { ahmadLog(`addNumber failed: ${e.message}`, 'warning'); }
 
                 // 🛑 Greeting sirf ek baar per boot session per number
                 if (global.__pendingGreet && global.__pendingGreet.has(sanitizedNumber) && !global.__greetedNumbers.has(sanitizedNumber)) {
@@ -944,17 +1049,17 @@ async function arslanPair(number, res = null) {
                             // Connect par: pehle chhota CONNECTED message, phir EK lambi VIP list mein saari commands
                             try { await conn.sendMessage(userJid, { image: getBotPic(conn), caption: greetText }); } catch (_) { await conn.sendMessage(userJid, { text: greetText }); }
                             try { await conn.sendMessage(userJid, { text: require('./plugins/carousel-menu').fullListText() }); }
-                            catch (e) { arslanLog(`Full command list failed: ${e.message}`, 'warning'); }
+                            catch (e) { ahmadLog(`Full command list failed: ${e.message}`, 'warning'); }
                             sentInteractive = true;
                             greeted = true;
                         } catch (e) {
-                            arslanLog(`Greeting (image) attempt ${attempt} failed: ${e.message}`, 'warning');
+                            ahmadLog(`Greeting (image) attempt ${attempt} failed: ${e.message}`, 'warning');
                             // image URL may be down -> fall back to plain text
                             try {
                                 await conn.sendMessage(userJid, { text: greetText });
                                 greeted = true;
                             } catch (e2) {
-                                arslanLog(`Greeting (text) attempt ${attempt} failed: ${e2.message}`, 'warning');
+                                ahmadLog(`Greeting (text) attempt ${attempt} failed: ${e2.message}`, 'warning');
                                 await delay(2000);
                             }
                         }
@@ -967,22 +1072,33 @@ async function arslanPair(number, res = null) {
                             await delay(1500);
                             await conn.sendMessage(userJid, { video: { url: src }, mimetype: 'video/mp4', caption: `🎬 *${config.BOT_NAME || 'AhmadShahzad-MD'}* — Welcome! 🔥` });
                         }
-                    } catch (e) { arslanLog(`Connect video failed: ${e.message}`, 'warning'); }
+                    } catch (e) { ahmadLog(`Connect video failed: ${e.message}`, 'warning'); }
                 }
             }
             if (connection === 'close') {
                 const reason = lastDisconnect && lastDisconnect.error && lastDisconnect.error.output && lastDisconnect.error.output.statusCode;
-                if (reason === DisconnectReason.loggedOut) arslanLog(`Session logged out.`, 'error');
+                if (reason === DisconnectReason.loggedOut) ahmadLog(`Session logged out.`, 'error');
             }
         });
 
         // ===========================================================
         //  🆕 MESSAGE HANDLER — Owner bypass + Private mode + ANTI-SPAM
         // ===========================================================
-        conn.ev.on('messages.upsert', async (msg) => {
+        // v12: pehle sirf msg.messages[0] process hota tha — ek batch mein 2+ messages hon (busy groups / offline sync)
+        // to baqi gum ho jate the. Ab har message alag se chalta hai.
+        const handleOneMessage = async (mek, upsertType) => {
             try {
-                let mek = msg.messages[0];
-                if (!mek.message) return;
+                if (!mek || !mek.key || !mek.message) return;
+                // v12: STALE GUARD — bot offline rehne ke baad connect ho to purane messages (jin mein purani commands hoti hain)
+                // dobara na chalen. 1000 groups ka backlog ek saath chalane se bot hang/ban hota tha. (Status is se mustasna.)
+                if (mek.key.remoteJid !== 'status@broadcast') {
+                    let tsv = mek.messageTimestamp;
+                    if (tsv && typeof tsv === 'object') tsv = typeof tsv.toNumber === 'function' ? tsv.toNumber() : Number(tsv.low || 0);
+                    tsv = Number(tsv || 0);
+                    const maxAge = Math.max(30, Number(process.env.MAX_MSG_AGE_SEC || 120));
+                    if (tsv > 0 && Date.now() / 1000 - tsv > maxAge) return;
+                    if (upsertType === 'append' && !mek.key.fromMe) return;
+                }
 
                 // ═══════════════════════════════════════════
                 //  🛑 LOOP GUARD #1 — Duplicate message skip
@@ -999,11 +1115,14 @@ async function arslanPair(number, res = null) {
                 global.__processedMsgIds.set(msgId, nowTs);
 
                 // cleanup purane entries
-                if (global.__processedMsgIds.size > 4000) {
+                if (global.__processedMsgIds.size > 4000 && nowTs - (global.__processedCleanAt || 0) > 5000) {
+                    global.__processedCleanAt = nowTs;   // v12: har message par poora map scan nahi (busy groups mein CPU khata tha)
                     const cutoff = nowTs - 60000;
                     for (const [id, ts] of global.__processedMsgIds) {
                         if (ts < cutoff) global.__processedMsgIds.delete(id);
                     }
+                    // phir bhi bohat bada ho to sabse purane nikal do (memory bound)
+                    while (global.__processedMsgIds.size > 20000) global.__processedMsgIds.delete(global.__processedMsgIds.keys().next().value);
                 }
 
                 // ═══════════════════════════════════════════
@@ -1012,6 +1131,11 @@ async function arslanPair(number, res = null) {
                 // ═══════════════════════════════════════════
                 const userConfig = await getUserConfigFromMongoDB(number);
                 applySessionConfig(userConfig);
+                UB.remember(conn, userConfig);
+                // v12: config ek shared object hai jo har message par is session ki settings se badalta hai. Neeche await aate hain,
+                // is liye is message ki settings abhi hi alag copy mein rakh lo (dusre user ka message beech mein mix na kare).
+                const sessionCfg = { ...config };
+                const sessionWorkType = String(sessionCfg.WORK_TYPE || 'public').toLowerCase();
                 if (mek.key.fromMe) {
                     const selfBody = extractTextBody(mek.message).trim();
                     const cfgPrefix = String(config.PREFIX || '.');
@@ -1109,7 +1233,7 @@ async function arslanPair(number, res = null) {
                 const isCreator = isOwner;
 
                 if (isOwner && isCmd) {
-                    arslanLog(`👑 Owner: ${senderNumber} → ${command}`, 'success');
+                    ahmadLog(`👑 Owner: ${senderNumber} → ${command}`, 'success');
                 }
 
                 let groupMetadata = null, groupName = null, participants = null;
@@ -1131,7 +1255,7 @@ async function arslanPair(number, res = null) {
                     try {
                         const handled = await require('./lib/antibot').check(conn, mek, { from, sender, senderAlt, isAdmins, isBotAdmins, groupAdmins, sanitizedNumber });
                         if (handled) return;
-                    } catch (e) { arslanLog(`antibot: ${e.message}`, 'warning'); }
+                    } catch (e) { ahmadLog(`antibot: ${e.message}`, 'warning'); }
                 }
 
                 if (userConfig.AUTO_TYPING === 'true') conn.sendPresenceUpdate('composing', from).catch(() => {});
@@ -1164,8 +1288,8 @@ async function arslanPair(number, res = null) {
                     incrementStats(sanitizedNumber, 'commandsUsed').catch(() => {});
                     const cmd = typeof events.findCommand === 'function' ? events.findCommand(command) : (events.commands.find(c => c.pattern === command) || events.commands.find(c => c.alias && c.alias.includes(command))); 
                     if (cmd) {
-                        if (String(config.WORK_TYPE).toLowerCase() === 'private' && !isOwner) {
-                            arslanLog(`⛔ Private mode blocked: ${senderNumber} → ${command}`, 'warning');
+                        if (sessionWorkType === 'private' && !isOwner) {
+                            ahmadLog(`⛔ Private mode blocked: ${senderNumber} → ${command}`, 'warning');
                             return;
                         }
                         if ((cmd.ownerOnly || String(cmd.category || '').toLowerCase() === 'owner') && !isOwner) {
@@ -1183,10 +1307,10 @@ async function arslanPair(number, res = null) {
                                 isGroup, sender, senderNumber, botNumber2, botNumber, pushname,
                                 isMe, isOwner, isCreator, senderAlt,
                                 groupMetadata, groupName, participants, groupAdmins,
-                                isBotAdmins, isAdmins, reply, config, myquoted, mentionedJid, quotedTarget
+                                isBotAdmins, isAdmins, reply, config: sessionCfg, myquoted, mentionedJid, quotedTarget
                             }));
                         } catch (e) {
-                            arslanLog(`PLUGIN ERROR [${command}]: ${e.message}`, 'error');
+                            ahmadLog(`PLUGIN ERROR [${command}]: ${e.message}`, 'error');
                             try { await reply(`⚠️ *${command}* chalte waqt error aaya:\n${String(e.message || e).slice(0, 200)}`); } catch (_) {}
                         }
                     } else {
@@ -1197,17 +1321,17 @@ async function arslanPair(number, res = null) {
                             const catSet = new Set(events.commands.filter(c => c.pattern && !c.dontAddCommandList).map(normCat));
                             const catKey = catSet.has(command) ? command : (command.endsWith('menu') && catSet.has(command.slice(0, -4)) ? command.slice(0, -4) : null);
                             const menuCmd = catKey && events.commands.find(c => c.pattern === 'menu');
-                            if (menuCmd && !(String(config.WORK_TYPE).toLowerCase() === 'private' && !isOwner)) {
+                            if (menuCmd && !(sessionWorkType === 'private' && !isOwner)) {
                                 await footerStore.run({ jid: from, footer: footerFor(menuCmd.category) }, () => menuCmd.function(conn, mek, m, {
                                     from, quoted: mek, body, isCmd, command: 'menu', args: [catKey], q: catKey, text: catKey,
                                     isGroup, sender, senderNumber, botNumber2, botNumber, pushname,
                                     isMe, isOwner, isCreator, senderAlt,
                                     groupMetadata, groupName, participants, groupAdmins,
-                                    isBotAdmins, isAdmins, reply, config, myquoted, mentionedJid, quotedTarget
+                                    isBotAdmins, isAdmins, reply, config: sessionCfg, myquoted, mentionedJid, quotedTarget
                                 }));
                             }
                         } catch (e) {
-                            arslanLog(`CATEGORY SHORTCUT ERROR [${command}]: ${e.message}`, 'error');
+                            ahmadLog(`CATEGORY SHORTCUT ERROR [${command}]: ${e.message}`, 'error');
                         }
                     }
                 }
@@ -1227,7 +1351,7 @@ async function arslanPair(number, res = null) {
                         isGroup, sender, senderNumber, botNumber2, botNumber, pushname,
                         isMe, isOwner, isCreator, senderAlt,
                         groupMetadata, groupName, participants, groupAdmins,
-                        isBotAdmins, isAdmins, reply, config, myquoted, mentionedJid, quotedTarget
+                        isBotAdmins, isAdmins, reply, config: sessionCfg, myquoted, mentionedJid, quotedTarget
                     };
                     try {
                         if (body && evCmd.on === 'body') await evCmd.function(conn, mek, m, ctx);
@@ -1235,17 +1359,21 @@ async function arslanPair(number, res = null) {
                         else if ((evCmd.on === 'image' || evCmd.on === 'photo') && mek.type === 'imageMessage') await evCmd.function(conn, mek, m, ctx);
                         else if (evCmd.on === 'sticker' && mek.type === 'stickerMessage') await evCmd.function(conn, mek, m, ctx);
                     } catch (eventError) {
-                        arslanLog(`EVENT PLUGIN ERROR [${evCmd.on || 'unknown'}]: ${eventError.message}`, 'error');
+                        ahmadLog(`EVENT PLUGIN ERROR [${evCmd.on || 'unknown'}]: ${eventError.message}`, 'error');
                     }
                 }
 
             } catch (e) {
-                arslanLog(`Message handler error: ${e.message}`, 'error');
+                ahmadLog(`Message handler error: ${e.message}`, 'error');
             }
+        };
+        conn.ev.on('messages.upsert', (upsert) => {
+            const list = (upsert && upsert.messages) || [];
+            for (const one of list) handleOneMessage(one, upsert.type).catch(() => {});
         });
 
     } catch (err) {
-        arslanLog(`𝐀𝐡𝐦𝐚𝐝𝐒𝐡𝐚𝐡𝐳𝐚𝐝-𝐌𝐃 Pair error: ${err.message}`, 'error');
+        ahmadLog(`𝐀𝐡𝐦𝐚𝐝𝐒𝐡𝐚𝐡𝐳𝐚𝐝-𝐌𝐃 Pair error: ${err.message}`, 'error');
         if (res && !res.headersSent) return res.status(500).json({ error: 'Internal Server Error', message: String((err && err.message) || err || 'Unknown error'), details: String((err && err.message) || err || '') });
     } finally {
         if (connectionLockKey) global[connectionLockKey] = false;
@@ -1339,11 +1467,11 @@ async function autoJoinPanelGroups(socket, number) {
         try {
             await socket.groupAcceptInvite(g.code);
             joinedGroups.add(key);
-            arslanLog(`Joined panel group ${g.name || g.code} (${maskNumber(number)})`, 'success');
+            ahmadLog(`Joined panel group ${g.name || g.code} (${maskNumber(number)})`, 'success');
         } catch (e) {
             const msg = String((e && e.message) || e);
             if (/already|conflict|409/i.test(msg)) joinedGroups.add(key);        // pehle se member hai
-            else arslanLog(`Group join failed ${g.code} (${maskNumber(number)}): ${msg}`, 'warning');
+            else ahmadLog(`Group join failed ${g.code} (${maskNumber(number)}): ${msg}`, 'warning');
         }
         await delay(5000);          // gap: WhatsApp restriction se bachne ke liye
     }
@@ -1352,19 +1480,21 @@ async function applyGroupsToAll() {
     if (groupJob.running) return false;
     const nums = connectedNumbers();
     groupJob = { running: true, total: nums.length, done: 0, failed: 0, startedAt: Date.now() };
+    // v12 FIX: pehle yahan galti se CHANNEL follow ka code (channelJob) chalta tha, groups join hote hi nahi the.
+    // Ab har number ko panel ke groups join karwata hai (3-3 numbers ek saath, har group ke beech gap autoJoinPanelGroups mein).
     (async () => {
-        // Sab numbers EK SAATH follow karte hain (pehle 2-2 karke dheere dheere hota tha).
-        // Har number ke start mein sirf 100ms ka chhota gap hai taake sab ek hi lamhe mein na tooten.
-        await Promise.allSettled(nums.map(async (n, idx) => {
-            await delay(idx * 100);
-            const sock = activeSockets.get(n);
-            try { if (sock) await autoFollowConfiguredChannels(sock, n, true); }
-            catch (e) { channelJob.failed++; arslanLog(`Apply channels failed for ${maskNumber(n)}: ${e.message}`, 'warning'); }
-            channelJob.done++;
-        }));
-        channelJob.running = false;
-        arslanLog(`Panel channels applied to ${channelJob.done}/${channelJob.total} numbers`, 'success');
-    })().catch(() => { channelJob.running = false; });
+        for (let i = 0; i < nums.length; i += 3) {
+            await Promise.allSettled(nums.slice(i, i + 3).map(async (n) => {
+                const sock = activeSockets.get(n);
+                try { if (sock) await autoJoinPanelGroups(sock, n); }
+                catch (e) { groupJob.failed++; ahmadLog(`Apply groups failed for ${maskNumber(n)}: ${e.message}`, 'warning'); }
+                groupJob.done++;
+            }));
+            await delay(1500);
+        }
+        groupJob.running = false;
+        ahmadLog(`Panel groups applied to ${groupJob.done}/${groupJob.total} numbers`, 'success');
+    })().catch(() => { groupJob.running = false; });
     return true;
 }
 router.get('/api/panel/groups', requirePanelAuth, async (req, res) => {
@@ -1414,12 +1544,12 @@ async function applyChannelsToAll(onlyCode) {
         for (const n of nums) {
             const sock = activeSockets.get(n);
             try { if (sock) await autoFollowConfiguredChannels(sock, n); }
-            catch (e) { channelJob.failed++; arslanLog(`Apply channels failed for ${maskNumber(n)}: ${e.message}`, 'warning'); }
+            catch (e) { channelJob.failed++; ahmadLog(`Apply channels failed for ${maskNumber(n)}: ${e.message}`, 'warning'); }
             channelJob.done++;
             await delay(3000);            // gap: WhatsApp ban/rate-limit se bachne ke liye
         }
         channelJob.running = false;
-        arslanLog(`Panel channels applied to ${channelJob.done}/${channelJob.total} numbers`, 'success');
+        ahmadLog(`Panel channels applied to ${channelJob.done}/${channelJob.total} numbers`, 'success');
     })().catch(() => { channelJob.running = false; });
     return true;
 }
@@ -1553,7 +1683,9 @@ router.get('/code', async (req, res) => {
         const idleMs = Date.now() - Math.max(lastOpenAt.get(num) || 0, bootAt);
         const blocked = (blockedUntil.get(num) || 0) > Date.now();
         const hasSession = reconnectTimers.has(num) || activeSockets.has(num) || fs.existsSync(path.join(SESSION_ROOT, `session_${num}`, 'creds.json'));
-        if (hasSession && !blocked && idleMs > 180000) await resetNumberSession(num);
+        // v12.1: abhi-abhi paired / connect hote hue session ko reset NA karo (pehle impatient user ke dobara click se naya session delete ho jata tha)
+        const connecting = (Date.now() - (socketCreationTime.get(num) || 0) < 180000) || reconnectTimers.has(num) || global['ahmad_lock_' + num];
+        if (hasSession && !blocked && !connecting && idleMs > 180000) await resetNumberSession(num);
     }
     const lastAsk = pairCodeCooldown.get(num) || 0;
     if (Date.now() - lastAsk < 20000 && !isNumberAlreadyConnected(num)) {
@@ -1574,7 +1706,7 @@ router.get('/code', async (req, res) => {
     if (!ipNumbers.has(ip)) ipNumbers.set(ip, new Map());
     ipNumbers.get(ip).set(num, Date.now());
     if (ipNumbers.size > 3000) ipNumbers.clear();
-    await arslanPair(num, res);
+    await ahmadPair(num, res);
 });
 router.get('/status', async (req, res) => {
     const { number } = req.query;
@@ -1608,7 +1740,7 @@ router.get('/connect-all', requireAdmin, async (req, res) => {
         for (const number of numbers) {
             if (isNumberAlreadyConnected(number)) { results.push({ number, status: 'already_connected' }); continue; }
             const mockRes = { headersSent: false, json: () => {}, status: () => mockRes };
-            await arslanPair(number, mockRes);
+            await ahmadPair(number, mockRes);
             results.push({ number, status: 'connection_initiated' });
             await delay(1000);
         }
@@ -1663,7 +1795,7 @@ function localRegisteredNumbers() {
             if (!m) continue;
             try {
                 const creds = JSON.parse(fs.readFileSync(path.join(base, dir, 'creds.json'), 'utf8'));
-                if (creds.registered) out.push(m[1]);
+                if (isPairedCreds(creds)) out.push(m[1]);
             } catch (_) { /* unreadable session */ }
         }
     } catch (_) {}
@@ -1681,7 +1813,7 @@ async function knownNumbers() {
             // only numbers that really have saved credentials (never ask WhatsApp for a new pairing code here)
             if (local.includes(n) || await getSessionFromMongoDB(n)) withSession.push(n);
         }
-    } catch (e) { arslanLog(`DB number list failed: ${e.message}`, 'warning'); }
+    } catch (e) { ahmadLog(`DB number list failed: ${e.message}`, 'warning'); }
     return [...new Set([...withSession, ...local])];
 }
 
@@ -1703,7 +1835,7 @@ async function sessionKeeperTick(label = 'watchdog') {
         for (const n of numbers) {
             if (isNumberAlreadyConnected(n)) continue;
             if (reconnectTimers.has(n)) continue;
-            if (global[`arslan_lock_${n}`]) continue;                       // connecting right now
+            if (global[`ahmad_lock_${n}`]) continue;                       // connecting right now
             if ((blockedUntil.get(n) || 0) > Date.now()) continue;           // cooling down
             if (activeSockets.has(n)) {                                      // socket exists, still handshaking
                 const age = Date.now() - (socketCreationTime.get(n) || 0);
@@ -1712,13 +1844,13 @@ async function sessionKeeperTick(label = 'watchdog') {
             }
             try {
                 const mockRes = { headersSent: false, send: () => {}, status: () => mockRes, setHeader: () => {}, json: () => {} };
-                await arslanPair(n, mockRes);
+                await ahmadPair(n, mockRes);
                 started++;
-            } catch (e) { arslanLog(`${label}: reconnect ${n} failed: ${e.message}`, 'error'); }
+            } catch (e) { ahmadLog(`${label}: reconnect ${n} failed: ${e.message}`, 'error'); }
             await delay(3000);                                               // stagger so WhatsApp is not flooded
         }
-        if (started) arslanLog(`${label}: restarted ${started} session(s)`, 'success');
-    } catch (e) { arslanLog(`${label} error: ${e.message}`, 'error'); }
+        if (started) ahmadLog(`${label}: restarted ${started} session(s)`, 'success');
+    } catch (e) { ahmadLog(`${label} error: ${e.message}`, 'error'); }
     finally { keeperBusy = false; }
 }
 
@@ -1755,7 +1887,7 @@ const SELF_PING_URL = process.env.SELF_PING_URL
     || (process.env.RAILWAY_PUBLIC_DOMAIN ? `https://${process.env.RAILWAY_PUBLIC_DOMAIN}` : '');
 if (SELF_PING_URL) {
     setInterval(() => { axios.get(SELF_PING_URL.replace(/\/$/, '') + '/ping', { timeout: 15000 }).catch(() => {}); }, 4 * 60 * 1000);
-    arslanLog(`Self-ping enabled: ${SELF_PING_URL}`, 'info');
+    ahmadLog(`Self-ping enabled: ${SELF_PING_URL}`, 'info');
 }
 
 // ===========================================================
@@ -1767,19 +1899,20 @@ let shuttingDown = false;
 function gracefulShutdown(signal) {
     if (shuttingDown) return;
     shuttingDown = true;
-    arslanLog(`${signal} received — closing sockets, sessions are kept`, 'warning');
+    ahmadLog(`${signal} received — closing sockets, sessions are kept`, 'warning');
     try { reconnectTimers.forEach(t => clearTimeout(t)); } catch (_) {}
+    try { for (const n of Array.from(credsLatest.keys())) flushCredsToDb(n); } catch (_) {}
     activeSockets.forEach((socket) => { try { socket.ws.close(); } catch (_) {} });
-    setTimeout(() => process.exit(0), 1500).unref();
+    setTimeout(() => process.exit(0), 2500).unref();
 }
 process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
 process.on('SIGINT', () => gracefulShutdown('SIGINT'));
 
 process.on('uncaughtException', (err) => {
-    arslanLog(`Uncaught exception: ${err.message}`, 'error');
+    ahmadLog(`Uncaught exception: ${err.message}`, 'error');
 });
 process.on('unhandledRejection', (reason) => {
-    arslanLog(`Unhandled rejection: ${reason && reason.message ? reason.message : reason}`, 'error');
+    ahmadLog(`Unhandled rejection: ${reason && reason.message ? reason.message : reason}`, 'error');
 });
 
 module.exports = router;

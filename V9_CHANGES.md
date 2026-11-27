@@ -1,7 +1,7 @@
 # V9 — Fix list (AhmadShahzad-MD)
 
 ## Channels / owner
-- Channels ab sirf 2: 0029VbECaFY3GJOpTccc5c0c aur 0029VbCx2Sb5q08a3fe3KZ42 (config.js + lib/system.js). Purane Arslan channels hata diye.
+- Channels ab sirf 2: 0029VbECaFY3GJOpTccc5c0c aur 0029VbCx2Sb5q08a3fe3KZ42 (config.js + lib/system.js). Purane Ahmad channels hata diye.
 - `lib/system.js` obfuscated hai. Clean source: `_source_unobfuscated/system.src.js`. Badalne ke baad `node scripts/obfuscate-system.js`
   (agar `npm i javascript-obfuscator` kiya ho to wo strong obfuscation karta hai). Deploy se pehle `_source_unobfuscated/` folder delete kar do.
 - Owner number fixed: 923264931117 (env se badalna band, `.ownernumber` sirf dikhata hai). Har bot ka paired WhatsApp usi bot ka owner hai.

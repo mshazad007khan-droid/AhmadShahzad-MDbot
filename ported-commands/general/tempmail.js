@@ -39,7 +39,7 @@ module.exports = {
           `🔄 *Apni marzi ki email set karne ke liye:*\n` +
           `_` + prefix + `tempmail change <name>_`;
 
-        return extra.reply(replyText);
+        return require('../../lib/copybtn').sendCopy(sock, extra.from, { text: replyText, copies: [{ label: '📋 Copy Email', value: email }], quoted: msg });
       }
 
       // 2. CHANGE / CUSTOM EMAIL
@@ -70,7 +70,7 @@ module.exports = {
           `_` + prefix + `tempmail inbox_`;
 
         await extra.react('✅');
-        return extra.reply(replyText);
+        return require('../../lib/copybtn').sendCopy(sock, extra.from, { text: replyText, copies: [{ label: '📋 Copy Email', value: customEmail }], quoted: msg });
       }
 
       // 3. CHECK INBOX

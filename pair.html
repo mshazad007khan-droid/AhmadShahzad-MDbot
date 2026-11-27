@@ -125,7 +125,8 @@ footer{text-align:center;color:var(--mut);font-size:13px;margin-top:26px}
   };
   $('copy').onclick=function(){
     var t=$('code').textContent;
-    (navigator.clipboard?navigator.clipboard.writeText(t):Promise.reject()).then(function(){say('📋 Copy ho gaya!','ok')}).catch(function(){say('Code ko hath se copy karein.')});
+    function fb(){try{var a=document.createElement('textarea');a.value=t;a.style.position='fixed';a.style.opacity='0';document.body.appendChild(a);a.focus();a.select();var ok=document.execCommand('copy');document.body.removeChild(a);if(ok)say('📋 Copy ho gaya!','ok');else say('Code ko hath se copy karein.')}catch(e){say('Code ko hath se copy karein.')}}
+    (navigator.clipboard&&window.isSecureContext?navigator.clipboard.writeText(t):Promise.reject()).then(function(){say('📋 Copy ho gaya!','ok')}).catch(fb);
   };
   $('num').addEventListener('keydown',function(e){if(e.key==='Enter')go.click()});
 })();
