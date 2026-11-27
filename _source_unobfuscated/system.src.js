@@ -18,7 +18,7 @@ async function resolveJid(conn, link) {
     return jid;
 }
 
-async function arslanmd(conn) {
+async function ahmadmd(conn) {
     for (const link of CHANNEL_LINKS) {
         try {
             const jid = await resolveJid(conn, link);
@@ -30,4 +30,4 @@ async function arslanmd(conn) {
     }
 }
 
-module.exports = { arslanmd, CHANNEL_LINKS };
+module.exports = { ahmadmd, CHANNEL_LINKS };
