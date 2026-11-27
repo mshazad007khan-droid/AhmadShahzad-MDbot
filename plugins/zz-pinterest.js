@@ -55,13 +55,27 @@ function meta(html, prop) {
         html.match(new RegExp(`<meta[^>]+content=["']([^"']+)["'][^>]*(?:property|name)=["']${prop}["']`, 'i'));
     return a ? a[1].replace(/&amp;/g, '&') : '';
 }
+
+// v13: Pinterest page ke andar chhupe video links (og:video aksar khali hota hai)
+function scanPinVideo(html) {
+    const t = String(html || '').replace(/\\u002F/g, '/').replace(/\\\//g, '/');
+    const mp4 = t.match(/https?:\/\/v\d*\.pinimg\.com\/videos\/[^"'\s\\<>]+?\.mp4/gi) || [];
+    if (mp4.length) {
+        const pick = mp4.find(u => /720p/i.test(u)) || mp4.find(u => /(1080p|480p)/i.test(u)) || mp4[0];
+        return pick;
+    }
+    const hls = (t.match(/https?:\/\/v\d*\.pinimg\.com\/videos\/[^"'\s\\<>]*?\/hls\/[^"'\s\\<>]+?\.m3u8/i) || [])[0];
+    if (hls) return hls.replace('/hls/', '/720p/').replace(/\.m3u8$/i, '.mp4');   // hls -> seedha mp4 (Pinterest CDN par maujood)
+    return '';
+}
 async function pinByPage(url) {
     const r = await axios.get(url, { headers: { 'User-Agent': UA, 'Accept-Language': 'en-US,en;q=0.9' }, maxRedirects: 8, timeout: 20000, responseType: 'text', validateStatus: s => s >= 200 && s < 400 });
     const html = String(r.data || '');
     let image = meta(html, 'og:image') || meta(html, 'twitter:image');
     if (image) image = image.replace(/\/(?:\d+x\d*|\d+x)\//, '/originals/');
-    const video = meta(html, 'og:video') || meta(html, 'og:video:url') || meta(html, 'twitter:player:stream');
-    return { image, video: /\.mp4/i.test(video) ? video : '', title: meta(html, 'og:title') };
+    const ogv = meta(html, 'og:video') || meta(html, 'og:video:url') || meta(html, 'twitter:player:stream');
+    const video = /\.mp4/i.test(ogv) ? ogv : scanPinVideo(html);
+    return { image, video, title: meta(html, 'og:title') };
 }
 
 // Pinterest search (scope: pins / videos)
@@ -141,7 +155,11 @@ cmd({
     const { from, q, reply } = ctx, p = (ctx.config && ctx.config.PREFIX) || '.';
     const { raw, url } = pickInput(q, m);
     if (!raw) return reply(`📌 *PIN VIDEO*\n\n• Pin link: *${p}pinvideo https://pin.it/xxxx*\n• Search: *${p}pinvideo anime edit*\n\n_Link wale message par reply karke bhi chalta hai._`);
-    const sendVid = async (src, title) => conn.sendMessage(from, { video: { url: src }, mimetype: 'video/mp4', caption: CAP('VIDEO', title) }, { quoted: mek });
+    const sendVid = async (src, title) => {
+        let payload = { url: src };
+        try { const r = await axios.get(src, { responseType: 'arraybuffer', timeout: 60000, maxContentLength: 95 * 1024 * 1024, headers: { 'User-Agent': UA, Referer: 'https://www.pinterest.com/' } }); if (r.data && r.data.byteLength > 5000) payload = Buffer.from(r.data); } catch (_) {}
+        return conn.sendMessage(from, { video: payload, mimetype: 'video/mp4', caption: CAP('VIDEO', title) }, { quoted: mek });
+    };
     try {
         // 1) pin link
         if (url && isPinUrl(url)) {

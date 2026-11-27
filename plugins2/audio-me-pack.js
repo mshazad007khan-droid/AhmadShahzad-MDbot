@@ -40,8 +40,10 @@ async function getAudioSource(m, mek) {
         return { buffer: Buffer.concat(chunks), kind: type.replace('Message', ''), node };
     };
     if (m && m.quoted && m.quoted.message) { const r = await tryMsg(m.quoted.message); if (r) return r; }
-    const ctxQ = mek.message && (mek.message.extendedTextMessage || {}).contextInfo;
-    if (ctxQ && ctxQ.quotedMessage) { const r = await tryMsg(ctxQ.quotedMessage); if (r) return r; }
+    for (const k of Object.keys(mek.message || {})) {          // v13: reply kisi bhi type ke message se ho sakta hai
+        const v = mek.message[k];
+        if (v && typeof v === 'object' && v.contextInfo && v.contextInfo.quotedMessage) { const r = await tryMsg(v.contextInfo.quotedMessage); if (r) return r; }
+    }
     return tryMsg(mek.message);
 }
 
@@ -63,12 +65,17 @@ async function toVoiceNote(input, dir, af) {
     const out = path.join(dir, 'out.ogg');
     const args = ['-y', '-i', input, '-vn'];
     if (af) args.push('-af', af);
-    args.push('-ac', '1', '-ar', '48000', '-c:a', 'libopus', '-b:a', '48k', '-application', 'voip', '-f', 'ogg', out);
-    await ffq.run(ffq.ffmpegBin(), args, 180000);
+    const tail = ['-ac', '1', '-ar', '48000', '-c:a', 'libopus', '-b:a', '48k', '-application', 'voip', '-f', 'ogg', out];
+    try { await ffq.run(ffq.ffmpegBin(), [...args, ...tail], 180000); }
+    catch (e) {   // kuch ffmpeg builds mein -application nahi hota
+        await ffq.run(ffq.ffmpegBin(), [...args, '-ac', '1', '-ar', '48000', '-c:a', 'libopus', '-b:a', '48k', '-f', 'ogg', out], 180000);
+    }
     return fs.readFileSync(out);
 }
+const skipvoice = require('../lib/skipvoice');
+// messageId pehle se register: bgmusic/voice-changer hook is voice ko dobara process karke delete na kar de
 const sendPtt = (conn, ctx, mek, buf) =>
-    conn.sendMessage(ctx.from, { audio: buf, mimetype: 'audio/ogg; codecs=opus', ptt: true }, { quoted: mek });
+    conn.sendMessage(ctx.from, { audio: buf, mimetype: 'audio/ogg; codecs=opus', ptt: true }, { quoted: mek, messageId: skipvoice.newId() });
 
 // [pattern, alias[], ffmpeg -af, desc]
 const ME = [

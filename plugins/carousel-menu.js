@@ -193,9 +193,9 @@ const channelUrls = () => {
     return [...new Set(env.length ? env : def)];
 };
 const channelAt = (i) => { const l = channelUrls(); return l.length ? l[i % l.length] : channelUrl(); };
-const channelBtnAt = (i) => { const n = channelUrls().length || 1; return urlButton(`📢 CHANNEL ${(i % n) + 1}`, channelAt(i)); };
+const channelBtnAt = (i) => urlButton('📢 𝐕𝐈𝐄𝐖 𝐂𝐇𝐀𝐍𝐍𝐄𝐋', channelAt(i));   // v13: sirf VIEW CHANNEL (1/2 nahi)
 const channelUrl = config.CHANNEL_LINK || config.FORCE_CHANNEL_1 || config.FORCE_CHANNEL_2 || 'https://whatsapp.com/channel/0029VbECaFY3GJOpTccc5c0c';
-const channelButton = () => urlButton('📢 VIEW CHANNEL', channelUrl());
+const channelButton = () => urlButton('📢 𝐕𝐈𝐄𝐖 𝐂𝐇𝐀𝐍𝐍𝐄𝐋', channelUrl());
 const hasCmd = (n) => commands.some(c => c.pattern === n || (Array.isArray(c.alias) && c.alias.includes(n)));
 
 // Ek card: image header + text + 4 link buttons (PORTFOLIO / TELEGRAM / VIEW CHANNEL / CHAT OWNER)
@@ -216,7 +216,7 @@ async function sendLinkCard(conn, mek, from, body) {
     } catch (e) { console.error('link card error:', e && e.message); return false; }
 }
 
-function footerText(name) { return `✦ Powered By ${name || botName()} ✦`; }
+function footerText(name) { return `✦━ Powered By ${name || botName()} ━✦`; }
 
 // Plain-text fallback (agar carousel na chale)
 function textMenu(page, pageCards, total, totalPages) {
@@ -265,20 +265,20 @@ async function getProfile(conn, mek, ctx) {
 function profileText(pr) {
     const [clock, date] = String(pr.time || '').split('·').map(x => x.trim());
     return `✨ *${pr.bot}* ✨\n\n` +
-        `╭━━〔 👤 PROFILE 〕━━╮\n` +
-        `┃ 🙋 NAME ➜ ${pr.name}\n` +
-        `┃ ${pr.roleIcon} ROLE ➜ ${pr.role}\n` +
-        `╰━━━━━━━━━━━━╯\n\n` +
-        `╭━━〔 🤖 BOT INFO 〕━━╮\n` +
+        `┏━━━━❖ 👤 ${boldText('PROFILE')} ❖━━━━┓\n` +
+        `┃ 🙋 ${smallCaps('name')}  ➜ ${pr.name}\n` +
+        `┃ ${pr.roleIcon} ${smallCaps('role')}  ➜ ${pr.role}\n` +
+        `┗━━━━━━━━━━━━━━━━━━┛\n\n` +
+        `┏━━━━❖ 🤖 ${boldText('BOT INFO')} ❖━━━━┓\n` +
         (pr.desc ? `┃ 📝 ${pr.desc}\n` : '') +
-        `┃ 🔐 MODE ➜ ${pr.mode}\n` +
-        `┃ ⚡ PREFIX ➜ ${pr.prefix}\n` +
-        `┃ 📦 COMMANDS ➜ ${pr.total}\n` +
-        `┃ 📁 CATEGORIES ➜ ${pr.categories}\n` +
-        `┃ ⏱️ UPTIME ➜ ${pr.uptime}\n` +
-        `┃ 🕒 TIME ➜ ${clock || '-'}\n` +
-        (date ? `┃ 📅 DATE ➜ ${date}\n` : '') +
-        `╰━━━━━━━━━━━━╯\n\n`;
+        `┃ 🔐 ${smallCaps('mode')}  ➜ ${pr.mode}\n` +
+        `┃ ⚡ ${smallCaps('prefix')}  ➜ ${pr.prefix}\n` +
+        `┃ 📦 ${smallCaps('commands')}  ➜ ${pr.total}\n` +
+        `┃ 📁 ${smallCaps('categories')}  ➜ ${pr.categories}\n` +
+        `┃ ⏱️ ${smallCaps('uptime')}  ➜ ${pr.uptime}\n` +
+        `┃ 🕒 ${smallCaps('time')}  ➜ ${clock || '-'}\n` +
+        (date ? `┃ 📅 ${smallCaps('date')}  ➜ ${date}\n` : '') +
+        `┗━━━━━━━━━━━━━━━━━━┛\n\n`;
 }
 
 // User ki WhatsApp DP -> uploaded imageMessage (3s timeout, 10 min cache). Na mile to null (caller bot pic use karega).
@@ -361,18 +361,18 @@ const sortCmds = (list) => list.slice().sort((a, b) => {
 
 // Ek card ki body (image-2 jaisa): "➤ .COMMAND" ki lambi list, baaki ".menu <cat>" se
 function groupCardBody(g, grouped, p) {
-    const lines = [`╭━━〔 ${g.icon} ${g.title} 〕━━╮`];
+    const lines = [`┏━━━━❖ ${g.icon} ${boldText(g.title)} ❖━━━━┓`];
     let count = 0;
     const per = Math.max(4, Math.floor(LINES_PER_CARD / g.cats.length) - (g.cats.length > 1 ? 1 : 0));
     for (const cat of g.cats) {
         const list = sortCmds(grouped[cat]);
         count += list.length;
-        if (g.cats.length > 1) lines.push(`│ ${CATEGORY_ICONS[cat] || '📌'} ${cat.toUpperCase()} · ${list.length}`);
+        if (g.cats.length > 1) lines.push(`┣━ ${CATEGORY_ICONS[cat] || '📌'} ${boldText(cat.toUpperCase())} · ${list.length}`);
         const shown = list.slice(0, per);
-        for (const x of shown) lines.push(`➤ ${p}${x.toUpperCase()}${hintOf(x)}`);
-        if (list.length > per) lines.push(`✨ +${list.length - per} MORE ➜ ${p}menu ${cat}`);
+        for (const x of shown) lines.push(`┃ ➜ ${p}${x}${hintOf(x)}`);
+        if (list.length > per) lines.push(`┃ ✨ +${list.length - per} ${smallCaps('more')} ➜ ${p}menu ${cat}`);
     }
-    lines.push(`╰━━ 📦 ${count} COMMANDS ━━╯`);
+    lines.push(`┗━━ 📦 ${count} ${smallCaps('commands')} ━━┛`);
     return lines.join('\n');
 }
 
@@ -398,14 +398,14 @@ async function buildCarousels(conn, baileys, mek, ctx) {
     const all = [];
     // Card 1: PROFILE (header = user ki DP, na mile to bot pic)
     // (owner ka number/chat link menu mein nahi — sirf .ownernumber / .owner se milta hai)
-    const profBtns = [quickReply('📋 All Commands', p + 'cmdlist'), channelBtnAt(0)];
+    const profBtns = [quickReply('📜 ✦ 𝐀𝐋𝐋 𝐂𝐎𝐌𝐌𝐀𝐍𝐃𝐒 ✦', p + 'cmdlist'), channelBtnAt(0)];
     all.push(makeCard(dpMedia || botMedia, profileText(pr) + `➡️ SWIPE RIGHT FOR ALL CATEGORIES ➡️`, profBtns));
 
     // Baaki cards: theme groups (registry se auto — nayi command khud aa jati hai)
     let cardNo = 1;
     for (const g of cardGroups(grouped, cats)) {
         const btns = g.cats.slice().sort((a, b) => grouped[b].length - grouped[a].length).slice(0, 1)
-            .map(c => quickReply(`📂 ${c.toUpperCase()} (${grouped[c].length})`, `${p}menu ${c}`));
+            .map(c => quickReply(`${CATEGORY_ICONS[c] || '📂'} ${boldText(c.toUpperCase())} • ${grouped[c].length}`, `${p}menu ${c}`));
         btns.push(channelBtnAt(cardNo++));
         all.push(makeCard(botMedia, groupCardBody(g, grouped, p), btns));
     }
@@ -421,8 +421,7 @@ async function buildCarousels(conn, baileys, mek, ctx) {
 const CATEGORY_LINK_BUTTONS = [
     { button: '🌐 PORTFOLIO (Open first site)', url: 'https://www.google.com/search?q=ahmadshahzad+portfolio' },
     { button: '✈️ TELEGRAM',                    url: 'https://t.me/ahmadteachx' },
-    { button: '📢 CHANNEL 1',                   get url() { return channelAt(0); } },
-    { button: '📢 CHANNEL 2',                   get url() { return channelAt(1); } }
+    { button: '📢 𝐕𝐈𝐄𝐖 𝐂𝐇𝐀𝐍𝐍𝐄𝐋',               get url() { return channelAt(0); } }
 ];
 
 async function sendCategoryView(conn, mek, from, cat) {
@@ -437,12 +436,12 @@ async function sendCategoryView(conn, mek, from, cat) {
 
     // lambi category kai pages mein; HAR page ke neeche 4 buttons (VIEW CHANNEL zaroor)
     const MAX = 2600;
-    const mk = (i, n) => `╭━━〔 ${icon} ${cat.toUpperCase()}${n > 1 ? ` · ${i + 1}/${n}` : ''} 〕━━╮\n`;
-    const foot = (n) => `╰━━ 📦 ${list.length} COMMANDS ━━╯`;
+    const mk = (i, n) => `┏━━━━❖ ${icon} ${boldText(cat.toUpperCase())}${n > 1 ? ` · ${i + 1}/${n}` : ''} ❖━━━━┓\n`;
+    const foot = (n) => `┗━━ 📦 ${list.length} ${smallCaps('commands')} ━━┛`;
     const chunks = [];
     let cur = '';
     for (const c of list) {
-        const row = `➤ ${p}${c.toUpperCase()}${hintOf(c)}\n`;
+        const row = `┃ ➜ ${p}${c}${hintOf(c)}\n`;
         if ((mk(0, 9) + cur + row + foot()).length > MAX) { chunks.push(cur); cur = ''; }
         cur += row;
     }
@@ -654,7 +653,7 @@ async function sendProfileCard(conn, mek, from, ctx) {
             let media = await getProfileMedia(conn, prepareWAMessageMedia, pr.sender);
             if (!media) { try { media = await getHeaderMedia(conn, prepareWAMessageMedia); } catch (_) {} }
             const p = PREFIX();
-            const buttons = [quickReply('📜 Menu', p + 'menu'), quickReply('📋 All Commands', p + 'cmdlist')];
+            const buttons = [quickReply('🏠 ✦ 𝐌𝐄𝐍𝐔 ✦', p + 'menu'), quickReply('📜 ✦ 𝐀𝐋𝐋 𝐂𝐎𝐌𝐌𝐀𝐍𝐃𝐒 ✦', p + 'cmdlist')];
             const chans = channelUrls();
             buttons.push(urlButton('📢 VIEW CHANNEL', chans[0] || channelUrl()));
             const interactive = IM.create({
@@ -694,7 +693,7 @@ function fullListMessages(maxLen, nameOverride) {
     const p = PREFIX();
     const { grouped, cats, total } = groupCommands();
     const bn = nameOverride || botName();
-    const head = `╔═══════◥◣◆◢◤═══════╗\n   ༺ 💎 ${boldText(bn)} 💎 ༻\n╚═══════◢◤◆◥◣═══════╝\n` +
+    const head = `╔═══════◥◣◆◢◤═══════╗\n   ༺ 💎 ${boldText(bn)} 💎 ༻\n╚═══════◢◤◆◥◣═══════╝\n\n` +
         `┃ 👑 ${smallCaps('owner')} ➜ ${config.OWNER_NAME || '-'}\n` +
         `┃ ⚡ ${smallCaps('prefix')} ➜ ${p}\n` +
         `┃ 📦 ${total} ${smallCaps('commands')} · 📂 ${cats.length} ${smallCaps('categories')}\n` +
@@ -703,9 +702,9 @@ function fullListMessages(maxLen, nameOverride) {
     const blocks = [];
     for (const cat of cats) {
         const list = grouped[cat].slice().sort((a, b) => a.localeCompare(b));
-        const top = `╭━━〔 ${CATEGORY_ICONS[cat] || '📌'} ${cat.toUpperCase()} · ${list.length} 〕━━╮`;
-        const bottom = `╰━━━━━━━━━━━━╯`;
-        const rows = list.map(x => `➤ ${p}${x.toUpperCase()}${hintOf(x)}`);
+        const top = `┏━━━━❖ ${CATEGORY_ICONS[cat] || '📌'} ${boldText(cat.toUpperCase())} · ${list.length} ❖━━━━┓`;
+        const bottom = `┗━━━━━━━━━━━━━━━━━━┛`;
+        const rows = list.map(x => `┃ ➜ ${p}${x}${hintOf(x)}`);
         // lambi category ko poore boxes mein todo
         let cur = [];
         const flush = () => { if (cur.length) blocks.push(top + '\n' + cur.join('\n') + '\n' + bottom); cur = []; };

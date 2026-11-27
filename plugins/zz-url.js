@@ -31,7 +31,7 @@ const HOSTS = {
     } },
     uguu: { name: 'Uguu', async up(b, fn, mime) {
         const r = await post('https://uguu.se/upload', form({}, 'files[]', b, fn, mime));
-        return (r.data && r.data.files && r.data.files[0] && r.data.files[0].url) || null;
+        return (r.data && r.data.files && r.data.files[0] && r.data.files[0].url) || httpUrl(r.data);
     } },
     tmpfiles: { name: 'Tmpfiles', async up(b, fn, mime) {
         const r = await post('https://tmpfiles.org/api/v1/upload', form({}, 'file', b, fn, mime));
@@ -43,12 +43,20 @@ const HOSTS = {
         const r = await axios.post('https://api.imgbb.com/1/upload?key=' + IMGBB_KEY, f, { headers: { ...UA, ...f.getHeaders() }, timeout: 60000, maxBodyLength: Infinity });
         return r.data && r.data.data && (r.data.data.url || r.data.data.display_url) || null;
     } },
+    litterbox: { name: 'Litterbox', async up(b, fn, mime) {      // v13: Catbox ka temporary (72 ghante) host
+        const r = await post('https://litterbox.catbox.moe/resources/internals/api.php', form({ reqtype: 'fileupload', time: '72h' }, 'fileToUpload', b, fn, mime));
+        return httpUrl(r.data);
+    } },
+    quax: { name: 'Qu.ax', async up(b, fn, mime) {
+        const r = await post('https://qu.ax/upload.php', form({}, 'files[]', b, fn, mime));
+        return (r.data && r.data.files && r.data.files[0] && r.data.files[0].url) || httpUrl(r.data);
+    } },
     x0: { name: '0x0.st', async up(b, fn, mime) {
         const r = await post('https://0x0.st', form({}, 'file', b, fn, mime));
         return httpUrl(r.data);
     } }
 };
-const AUTO_ORDER = ['catbox', 'uguu', 'tmpfiles', 'x0', 'imgbb'];
+const AUTO_ORDER = ['catbox', 'litterbox', 'uguu', 'quax', 'tmpfiles', 'x0', 'imgbb'];
 const CMD_HOST = { url: null, url1: 'catbox', url2: 'uguu', url3: 'tmpfiles', url4: 'imgbb', url5: 'x0' };
 
 // ───────── media nikalna ─────────
@@ -84,12 +92,11 @@ async function handle(conn, mek, ctx, hostKey) {
     const p = (ctx.config && ctx.config.PREFIX) || '.';
     if (!media) return ctx.reply(`🔗 *MEDIA → LINK*\n\nPhoto / video / audio / document / sticker bhejte waqt caption mein *${p}url* likho, ya usi media par reply karke *${p}url*.\n\n*${p}url* auto  •  *${p}url1* Catbox  •  *${p}url2* Uguu\n*${p}url3* Tmpfiles  •  *${p}url4* ImgBB (photo)  •  *${p}url5* 0x0.st`);
     try {
-        await ctx.reply('⏳ Upload ho raha hai...');
+        ctx.reply('⏳ Upload ho raha hai...').catch(() => {});          // v13: download ka intezar nahi karta
         const mime = String(media.node.mimetype || '').split(';')[0] || 'application/octet-stream';
         const buf = await download(media.node, media.type);
         let fname = String(media.node.fileName || '').replace(/[^\w.\- ]/g, '_');
         if (!fname) fname = `${media.type}_${Date.now()}.${EXT[mime] || mime.split('/')[1] || 'bin'}`;
-
 
         const order = [...(hostKey ? [hostKey] : []), ...AUTO_ORDER.filter(h => h !== hostKey)];
         let url = null, used = null; const errs = [];
@@ -104,7 +111,10 @@ async function handle(conn, mek, ctx, hostKey) {
         const kb = buf.length >= 1048576 ? (buf.length / 1048576).toFixed(2) + ' MB' : (buf.length / 1024).toFixed(1) + ' KB';
         const note = hostKey && HOSTS[hostKey].name !== used ? `\n_(${HOSTS[hostKey].name} chala nahi, ${used} se bana)_` : '';
         const text = `✅ *LINK READY*\n\n📁 Type: ${media.type.toUpperCase()}  •  📦 ${kb}\n🌐 Host: ${used}${note}\n\n🔗 ${url}`;
-        await sendCopy(conn, ctx.from, { text, copies: [{ label: '📋 Copy Link', value: url }], extra: [urlBtn('🌐 Open', url)], quoted: mek });
+        // v13: PEHLE seedha text (hamesha dikhta hai, long-press se copy). Interactive Copy/Open buttons WhatsApp kabhi
+        // khaali/invisible dikhata tha (audio / video / document par link nazar nahi aata tha) — isliye buttons sirf EXTRA.
+        await conn.sendMessage(ctx.from, { text }, { quoted: mek });
+        sendCopy(conn, ctx.from, { text: '👇 *Quick buttons*', copies: [{ label: '📋 Copy Link', value: url }], extra: [urlBtn('🌐 Open', url)], quoted: mek }).catch(() => {});
     } catch (e) {
         return ctx.reply('❌ ' + String(e.message || e).slice(0, 200));
     }

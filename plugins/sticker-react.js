@@ -9,17 +9,19 @@
 //        .rs stop          -> chalti hui reaction rok do
 //  .sts list  /  .sts del <name>  /  .sts clear
 //
-// Har sticker usi message ke REPLY ki tarah bheja jata hai (quoted), isliye us message ke aas paas lagta hai.
+// v13: sticker ab message ke BORDER par chhote 'react' ki tarah lagte hain (quote-box wale bade reply ki tarah nahi).
+//      Env RS_MODE=border (default) | quoted  — agar aapke WhatsApp par border wala na dikhe to RS_MODE=quoted kar do.
 // Env: RS_MAX (default 10000) = ek baar mein max stickers, RS_DELAY_MS (default 150) = do stickers ke beech gap.
 const fs = require('fs');
 const path = require('path');
-const { downloadContentFromMessage } = require('@whiskeysockets/baileys');
+const { downloadContentFromMessage, jidNormalizedUser } = require('@whiskeysockets/baileys');
 const { cmd } = require('../ahmadcore');
 const { isSessionUser } = require('../lib/premium-check');
 
 const ROOT = path.join(process.env.DATA_DIR || path.join(__dirname, '..', 'data'), 'stickers');
 const RS_MAX = Math.max(1, parseInt(process.env.RS_MAX || '10000', 10) || 10000);
-const RS_DELAY = Math.max(0, parseInt(process.env.RS_DELAY_MS || '150', 10) || 150);
+const RS_MODE = String(process.env.RS_MODE || 'border').toLowerCase();
+const RS_DELAY = Math.max(0, parseInt(process.env.RS_DELAY_MS || '90', 10) || 90);
 const sleep = (ms) => new Promise(r => setTimeout(r, ms));
 const running = new Map();   // chat jid -> { stop }
 
@@ -142,6 +144,21 @@ cmd({
     }
 });
 
+
+// ---------- sticker bhejna: border-react ya quoted ----------
+// border: contextInfo mein sirf stanzaId + participant (quotedMessage NAHI) — WhatsApp sticker ko us message se jod kar
+// uske kinare par chhota dikhata hai, upar quote-box nahi banta. Fail ho to apne aap quoted mode.
+async function sendSticker(conn, from, target, buf) {
+    if (RS_MODE !== 'quoted') {
+        try {
+            const me = jidNormalizedUser((conn.user && conn.user.id) || '');
+            const part = target.key.participant ? jidNormalizedUser(target.key.participant) : (target.key.fromMe ? me : jidNormalizedUser(from));
+            return await conn.sendMessage(from, { sticker: buf, contextInfo: { stanzaId: target.key.id, participant: part, remoteJid: from } });
+        } catch (e) { /* neeche quoted fallback */ }
+    }
+    return conn.sendMessage(from, { sticker: buf }, { quoted: target });
+}
+
 // ---------- bhejne ka kaam ----------
 async function fire(conn, from, target, picks, mek) {
     const state = { stop: false };
@@ -150,7 +167,7 @@ async function fire(conn, from, target, picks, mek) {
     try {
         for (const buf of picks) {
             if (state.stop) break;
-            try { await conn.sendMessage(from, { sticker: buf }, { quoted: target }); sent++; failed = 0; }
+            try { await sendSticker(conn, from, target, buf); sent++; failed = 0; }
             catch (e) { failed++; if (failed >= 5) throw e; await sleep(1000); }
             if (RS_DELAY) await sleep(RS_DELAY);
         }
@@ -242,6 +259,6 @@ cmd({
     if (!n) n = names[Math.floor(Math.random() * names.length)];
     const buf = readSticker(conn, n);
     if (!buf) return reply('❌ Sticker file nahi mili — dobara save karo.');
-    try { await conn.sendMessage(from, { sticker: buf }, { quoted: target }); }
+    try { await sendSticker(conn, from, target, buf); }
     catch (e) { await reply('❌ ' + (e.message || e)); }
 });

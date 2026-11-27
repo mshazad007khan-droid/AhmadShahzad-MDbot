@@ -111,7 +111,13 @@ async function pinterestPage(url) {
         validateStatus: s => s >= 200 && s < 400
     });
     const html = String(res.data || '');
-    const video = metaContent(html, 'og:video') || metaContent(html, 'og:video:url') || metaContent(html, 'twitter:player:stream');
+    let video = metaContent(html, 'og:video') || metaContent(html, 'og:video:url') || metaContent(html, 'twitter:player:stream');
+    if (!/\.mp4/i.test(video || '')) {   // v13: page ke andar chhupa mp4 / hls link
+        const t = html.replace(/\\u002F/g, '/').replace(/\\\//g, '/');
+        const mp4 = t.match(/https?:\/\/v\d*\.pinimg\.com\/videos\/[^"'\s\\<>]+?\.mp4/i);
+        const hls = t.match(/https?:\/\/v\d*\.pinimg\.com\/videos\/[^"'\s\\<>]*?\/hls\/[^"'\s\\<>]+?\.m3u8/i);
+        video = mp4 ? mp4[0] : (hls ? hls[0].replace('/hls/', '/720p/').replace(/\.m3u8$/i, '.mp4') : video);
+    }
     let image = metaContent(html, 'og:image') || metaContent(html, 'twitter:image');
     if (image) image = image.replace(/\/(?:\d+x\d*|\d+x)\//, '/originals/');
     const title = metaContent(html, 'og:title');

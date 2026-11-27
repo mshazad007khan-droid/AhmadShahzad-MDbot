@@ -49,7 +49,7 @@ for (const [pattern, alias, preset, label] of VC_CMDS) {
             try {
                 conn.sendMessage(from, { react: { text: '⏳', key: mek.key } }).catch(() => {});
                 const out = await vc.applyPreset(audio, preset);
-                await conn.sendMessage(from, { audio: out, mimetype: 'audio/ogg; codecs=opus', ptt: true }, { quoted: mek });
+                await conn.sendMessage(from, { audio: out, mimetype: 'audio/ogg; codecs=opus', ptt: true }, { quoted: mek, messageId: require('../lib/skipvoice').newId() });
             } catch (e) { reply('❌ Voice change nahi ho saka: ' + e.message); }
             return;
         }

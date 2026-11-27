@@ -246,24 +246,10 @@ cmd({
     desc: 'Channel post ko group me forward karo',
     category: 'tools',
     react: '↗️',
-    use: '.chstatforward <group_jid> (channel post pe reply)',
+    use: '.chforward <group jid / link / here> (post ya gaane par reply)',
     filename: __filename
 }, async (conn, mek, m, ctx) => {
-    const groupJid = (ctx.args[0] || '').trim();
-    if (!groupJid) return ctx.reply('Use: `.chstatforward <group_jid>`');
-
-    const quoted = mek.message?.extendedTextMessage?.contextInfo?.quotedMessage;
-    if (!quoted) return ctx.reply('❌ Channel post pe reply karo.');
-
-    try {
-        await conn.sendMessage(groupJid, {
-            forward: {
-                key: mek.message.extendedTextMessage.contextInfo.stanzaId,
-                message: quoted
-            }
-        });
-        return ctx.reply(`✅ Post forward ho gaya!\n📌 → ${groupJid}`);
-    } catch (e) { return ctx.reply('❌ ' + e.message); }
+    return require('../lib/chforward').run(conn, mek, ctx, (ctx.args || []).join(' '));
 });
 
 // ===========================================================
