@@ -74,8 +74,13 @@ async function toVoiceNote(input, dir, af) {
 }
 const skipvoice = require('../lib/skipvoice');
 // messageId pehle se register: bgmusic/voice-changer hook is voice ko dobara process karke delete na kar de
-const sendPtt = (conn, ctx, mek, buf) =>
-    conn.sendMessage(ctx.from, { audio: buf, mimetype: 'audio/ogg; codecs=opus', ptt: true }, { quoted: mek, messageId: skipvoice.newId() });
+const sendPtt = async (conn, ctx, mek, buf) => {
+    try { return await conn.sendMessage(ctx.from, { audio: buf, mimetype: 'audio/ogg; codecs=opus', ptt: true }, { quoted: mek, messageId: skipvoice.newId() }); }
+    catch (e) {   // v13.2: messageId / quoted ki wajah se fail ho to seedha simple send
+        console.warn('[ME] ptt send retry:', e && e.message);
+        return conn.sendMessage(ctx.from, { audio: buf, mimetype: 'audio/ogg; codecs=opus', ptt: true });
+    }
+};
 
 // [pattern, alias[], ffmpeg -af, desc]
 const ME = [
@@ -93,6 +98,8 @@ for (const [pattern, alias, af, desc] of ME) {
             await sendPtt(conn, ctx, mek, await toVoiceNote(input, dir, af));
         }));
 }
+// (v13.2) log: kaun si command chali — .me na chale to Railway logs mein '[ME]' dhoondho
+console.log('[ME] audio-me-pack loaded: .me', ME.length, 'variants');
 
 cmd({ pattern: 'normalizeaudio', alias: ['normalize', 'evenvolume'], desc: 'Awaaz barabar karo (kabhi dhimi kabhi tez nahi) — voice note', category: 'audioedit', react: '📊', use: '.normalizeaudio (audio par reply)', filename: __filename },
     async (conn, mek, m, ctx) => withAudio(conn, mek, m, ctx, 'normalizeaudio', async ({ input, dir }) => {

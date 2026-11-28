@@ -156,8 +156,21 @@ cmd({
     const { raw, url } = pickInput(q, m);
     if (!raw) return reply(`📌 *PIN VIDEO*\n\n• Pin link: *${p}pinvideo https://pin.it/xxxx*\n• Search: *${p}pinvideo anime edit*\n\n_Link wale message par reply karke bhi chalta hai._`);
     const sendVid = async (src, title) => {
-        let payload = { url: src };
-        try { const r = await axios.get(src, { responseType: 'arraybuffer', timeout: 60000, maxContentLength: 95 * 1024 * 1024, headers: { 'User-Agent': UA, Referer: 'https://www.pinterest.com/' } }); if (r.data && r.data.byteLength > 5000) payload = Buffer.from(r.data); } catch (_) {}
+        const SV = require('../lib/safevideo');
+        const hlsToMp4 = (u) => String(u).replace('/hls/', '/720p/').replace(/\.m3u8(\?.*)?$/i, '.mp4');
+        const cands = [];
+        if (/\.m3u8/i.test(src)) cands.push(hlsToMp4(src), src); else cands.push(src);
+        let payload = null;
+        for (const u of cands) {
+            if (/\.m3u8/i.test(u)) { payload = await SV.fromUrl(u); if (payload) break; continue; }      // HLS -> ffmpeg se mp4
+            try {
+                const r = await axios.get(u, { responseType: 'arraybuffer', timeout: 60000, maxContentLength: 95 * 1024 * 1024, headers: { 'User-Agent': UA, Referer: 'https://www.pinterest.com/' } });
+                const b = Buffer.from(r.data || []);
+                if (SV.isMp4Like(b)) { payload = b; break; }    // HTML / text / chhoti file = kharab, agla candidate
+            } catch (_) {}
+        }
+        if (!payload) throw new Error('video file valid nahi mili');
+        payload = await SV.fix(payload);                         // faststart + h264/aac
         return conn.sendMessage(from, { video: payload, mimetype: 'video/mp4', caption: CAP('VIDEO', title) }, { quoted: mek });
     };
     try {
@@ -166,11 +179,11 @@ cmd({
             let video = '', title = '';
             try { const { id } = await resolvePin(url); if (id) { const pin = await pinById(id); video = bestVideo(pin); title = pin && (pin.title || pin.grid_title); } } catch (_) {}
             if (!video) { try { const pg = await pinByPage(url); video = pg.video; title = title || pg.title; } catch (_) {} }
-            if (video) { await sendVid(video, title); return; }
+            if (video) { try { await sendVid(video, title); return; } catch (e) { console.warn('[PINVIDEO]', e.message); } }   // fail ho to neeche yt-dlp
             // yt-dlp (bot ka apna downloader) — aakhri koshish
             try {
                 const local = await require('../lib/media-dl').downloadAnyVideo(url);
-                await conn.sendMessage(from, { video: local.buffer, mimetype: 'video/mp4', caption: CAP('VIDEO', title) }, { quoted: mek });
+                await conn.sendMessage(from, { video: await require('../lib/safevideo').fix(local.buffer), mimetype: 'video/mp4', caption: CAP('VIDEO', title) }, { quoted: mek });
                 return;
             } catch (_) {}
             return reply('❌ Is pin mein video nahi mili (shayad ye photo pin hai — uske liye *' + p + 'pinphoto* use karo).');

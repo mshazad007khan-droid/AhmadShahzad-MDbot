@@ -28,7 +28,7 @@ async function sendTikTok(conn, from, mek, url) {
         if (info.video.length) {
             const { buffer } = await tt.fetchVideoBuffer(info.video);
             if (buffer.length > mediaDl.MAX_BYTES) { const e = new Error('TOO_BIG'); throw e; }
-            await conn.sendMessage(from, { video: buffer, mimetype: 'video/mp4', caption: TT_CAP(info) }, { quoted: mek });
+            await conn.sendMessage(from, { video: await require('../lib/safevideo').fix(buffer), mimetype: 'video/mp4', caption: TT_CAP(info) }, { quoted: mek });
             return 'api';
         }
         if (info.images.length) {                                     // photo slideshow
@@ -42,7 +42,7 @@ async function sendTikTok(conn, from, mek, url) {
     } catch (e) { if (/TOO_BIG/.test(e.message)) throw e; apiErr = e; console.warn('[TIKTOK] API path failed:', e.message, (e.details || []).join(' | ')); }
     // fallback: yt-dlp
     const local = await mediaDl.downloadAnyVideo(url);
-    await conn.sendMessage(from, { video: local.buffer, mimetype: 'video/mp4', caption: TT_CAP(info) }, { quoted: mek });
+    await conn.sendMessage(from, { video: await require('../lib/safevideo').fix(local.buffer), mimetype: 'video/mp4', caption: TT_CAP(info) }, { quoted: mek });
     return 'ytdlp';
 }
 

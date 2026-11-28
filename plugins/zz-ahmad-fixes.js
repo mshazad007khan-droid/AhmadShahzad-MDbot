@@ -189,6 +189,30 @@ async function makeSquare(buffer, mode = 'blur', size = 640) {
         return fs.readFileSync(out);
     } finally { try { fs.rmSync(dir, { recursive: true, force: true }); } catch (_) {} }
 }
+
+// v13.2: poori photo, ASPECT RATIO ke saath (koi crop / padding nahi) — lambi side max 1280
+async function makeFull(buffer) {
+    const dir = path.join(os.tmpdir(), 'ufpp-' + crypto.randomBytes(5).toString('hex'));
+    fs.mkdirSync(dir, { recursive: true });
+    try {
+        const inp = path.join(dir, 'in'), out = path.join(dir, 'full.jpg');
+        fs.writeFileSync(inp, buffer);
+        const vf = "scale=w='if(gt(iw,ih),min(1280,iw),-2)':h='if(gt(iw,ih),-2,min(1280,ih))'";
+        await runFfmpeg(['-y', '-hide_banner', '-loglevel', 'error', '-i', inp, '-vf', vf, '-frames:v', '1', '-q:v', '2', out]);
+        return fs.readFileSync(out);
+    } finally { try { fs.rmSync(dir, { recursive: true, force: true }); } catch (_) {} }
+}
+// Baileys ka updateProfilePicture hamesha square 640 mein kaat/resize karta hai. Isliye seedha WhatsApp ko image bhejte hain;
+// na chale to Baileys ke tareeqe par wapas.
+async function setOwnPP(conn, jid, img) {
+    try {
+        await conn.query({ tag: 'iq', attrs: { to: '@s.whatsapp.net', type: 'set', xmlns: 'w:profile:picture' }, content: [{ tag: 'picture', attrs: { type: 'image' }, content: img }] });
+        return 'direct';
+    } catch (e) {
+        await conn.updateProfilePicture(jid, img);
+        return 'baileys';
+    }
+}
 async function imageFrom(m, mek) {
     const grab = async (msg) => {
         if (!msg) return null;
@@ -213,21 +237,26 @@ cmd({
     desc: 'Apni profile photo bina crop kiye (poori photo) lagao',
     category: 'owner',
     react: '🖼️',
-    use: '.ufpp [blur|white|black]  (photo par reply karke ya photo ke caption mein)',
+    use: '.ufpp [full|blur|white|black]  (photo par reply karke ya photo ke caption mein)',
     filename: __filename
 }, async (conn, mek, m, ctx) => {
     const { reply, args, isOwner, isCreator } = ctx;
     if (!(isOwner || isCreator)) return reply('*YEH COMMAND SIRF BOT OWNER KE LIYE HAI 😎*');
     const buf = await imageFrom(m, mek);
-    if (!buf) return reply(`🖼️ *UFPP — Full Profile Photo*\n\nKisi *photo par reply* karke likho:\n${P()}ufpp  (blur background)\n${P()}ufpp white\n${P()}ufpp black\n\nPoori photo bina crop ke aap ki profile par lag jayegi.`);
-    const mode = (args.find(x => /^(blur|white|black)$/i.test(x)) || 'blur').toLowerCase();
+    if (!buf) return reply(`🖼️ *UFPP — Full Profile Photo*\n\nKisi *photo par reply* karke likho:\n${P()}ufpp  (poori photo, bina crop)\n${P()}ufpp blur  (square + blur background)\n${P()}ufpp white / black\n\nPoori photo bina crop ke aap ki profile par lag jayegi.`);
+    const mode = (args.find(x => /^(full|blur|white|black)$/i.test(x)) || 'full').toLowerCase();
     try {
-        await conn.sendMessage(ctx.from, { react: { text: '⏳', key: mek.key } }).catch(() => {});
-        const square = await makeSquare(buf, mode, 640);
+        conn.sendMessage(ctx.from, { react: { text: '⏳', key: mek.key } }).catch(() => {});
         const me = String(conn.user.id).split(':')[0].split('@')[0] + '@s.whatsapp.net';
-        await conn.updateProfilePicture(me, square);
-        await conn.sendMessage(ctx.from, { react: { text: '✅', key: mek.key } }).catch(() => {});
-        return conn.sendMessage(ctx.from, { image: square, caption: `✅ *Profile photo update ho gayi* (bina crop)\nStyle: ${mode}` }, { quoted: mek });
+        let used = mode, how;
+        if (mode === 'full') {
+            try { how = await setOwnPP(conn, me, await makeFull(buf)); }
+            catch (e) { used = 'blur'; how = await setOwnPP(conn, me, await makeSquare(buf, 'blur', 720)); }   // full reject ho to blur-square
+        } else {
+            how = await setOwnPP(conn, me, await makeSquare(buf, mode, 720));
+        }
+        conn.sendMessage(ctx.from, { react: { text: '✅', key: mek.key } }).catch(() => {});
+        return conn.sendMessage(ctx.from, { text: `✅ *Profile photo update ho gayi* (bina crop)\nStyle: ${used}${used !== mode ? ' _(full accept nahi hui, blur-square lagayi)_' : ''}\n\n💡 ${P()}ufpp  (poori photo)  •  ${P()}ufpp blur  •  ${P()}ufpp white  •  ${P()}ufpp black` }, { quoted: mek });
     } catch (e) {
         await conn.sendMessage(ctx.from, { react: { text: '❌', key: mek.key } }).catch(() => {});
         return reply('❌ Profile photo set nahi hui: ' + (e.message || e));

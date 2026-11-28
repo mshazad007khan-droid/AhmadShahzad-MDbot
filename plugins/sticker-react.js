@@ -153,7 +153,7 @@ async function sendSticker(conn, from, target, buf) {
         try {
             const me = jidNormalizedUser((conn.user && conn.user.id) || '');
             const part = target.key.participant ? jidNormalizedUser(target.key.participant) : (target.key.fromMe ? me : jidNormalizedUser(from));
-            return await conn.sendMessage(from, { sticker: buf, contextInfo: { stanzaId: target.key.id, participant: part, remoteJid: from } });
+            return await conn.sendMessage(from, { sticker: buf, contextInfo: { stanzaId: target.key.id, participant: part } });
         } catch (e) { /* neeche quoted fallback */ }
     }
     return conn.sendMessage(from, { sticker: buf }, { quoted: target });

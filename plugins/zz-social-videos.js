@@ -123,7 +123,7 @@ ${title ? `┃ 🎞️ *${title}*\n` : ''}${result.author ? `┃ 👤 ${result.a
 ┃
 ╰━━━━━━━━━━━━━━━━━━━━━━╯
 ⚡ ${BOT()}`;
-    await conn.sendMessage(chat, { video: result.buffer, mimetype: 'video/mp4', caption }, { quoted: mek });
+    await conn.sendMessage(chat, { video: await require('../lib/safevideo').fix(result.buffer), mimetype: 'video/mp4', caption }, { quoted: mek });
     conn.sendMessage(chat, { react: { text: '✅', key: mek.key } }).catch(() => {});
 }
 
