@@ -1,4 +1,4 @@
-// plugins2/audio-sticker.js (v13.3) — .audiosticker  (short: .as)
+// plugins2/audio-sticker.js (v13.5) — .audiosticker  (short: .as)
 // Kisi VIDEO par reply karke .as likho -> WhatsApp ka NATIVE SOUND STICKER (sticker par speaker icon, tap karo to awaaz).
 // Ye lib/soundsticker.js se jata hai (alag WebP + Opus upload, field 134). Agar native send fail ho (purana WhatsApp / Baileys) to
 // khud purane tareeqe par aa jata hai: sticker + voice note.
@@ -48,10 +48,18 @@ async function getVideo(m, mek) {
     return tryMsg(mek.message);          // video ke caption mein .as likha ho
 }
 
-const hasAudio = (file) => {
-    try { const r = spawnSync(ffq.ffmpegBin(), ['-hide_banner', '-i', file], { encoding: 'utf8', timeout: 20000 }); return /Stream #[^\n]*Audio:/i.test(String(r.stderr || '') + String(r.stdout || '')); }
-    catch (_) { return false; }
-};
+// v13.5: async (pehle spawnSync tha — ffmpeg busy ho to poora bot 20 second tak ruk jata tha)
+const hasAudio = (file) => new Promise((resolve) => {
+    let out = '';
+    let p;
+    try { p = require('child_process').spawn(ffq.ffmpegBin(), ['-hide_banner', '-i', file], { stdio: ['ignore', 'pipe', 'pipe'] }); }
+    catch (_) { return resolve(false); }
+    const t = setTimeout(() => { try { p.kill('SIGKILL'); } catch (_) {} resolve(false); }, 20000);
+    p.stdout.on('data', d => { out += d; });
+    p.stderr.on('data', d => { out += d; });
+    p.on('error', () => { clearTimeout(t); resolve(false); });
+    p.on('close', () => { clearTimeout(t); resolve(/Stream #[^\n]*Audio:/i.test(out)); });
+});
 
 // sticker ka pack naam (exif) — na ho sake to bina exif ke bhi chalta hai
 async function addExif(webp) {
@@ -119,7 +127,7 @@ cmd({
         if (!buf) return ctx.reply('🎭 *AUDIO STICKER*\n\nKisi *video par reply* karke likho:\n• *.as*  → sticker + awaaz\n• *.as 6*  → pehle 6 second\n• *.as note* → gol video-note (awaaz ke saath)\n• *.as sticker* / *.as voice*');
         const input = path.join(dir, 'in.mp4');
         fs.writeFileSync(input, buf);
-        const audio = hasAudio(input);
+        const audio = await hasAudio(input);
 
         if (mode === 'note') {
             const note = await makeNote(input, dir, secs);
