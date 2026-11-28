@@ -1,6 +1,6 @@
 {
   "name": "ahmadshahzad-md-bot",
-  "version": "13.0.0",
+  "version": "13.5.0",
   "description": "AhmadShahzad-MD v12 — fast multi-session WhatsApp bot (1000+ groups safe), movie as document, bug fixes",
   "main": "index.js",
   "scripts": {

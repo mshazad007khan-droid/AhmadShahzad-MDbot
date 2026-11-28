@@ -775,7 +775,7 @@ function setupAutoRestart(socket, number) {
         restartCounts.set(sanitizedNumber, attempts);
         const wait = statusCode === DisconnectReason.restartRequired
             ? 1000
-            : Math.min(5000 * Math.pow(2, Math.min(attempts - 1, 6)), 300000) + Math.floor(Math.random() * 2000);
+            : Math.min(3000 * Math.pow(2, Math.min(attempts - 1, 4)), 45000) + Math.floor(Math.random() * 2000)   // v13.5: max 45s (pehle 5 minute tak);
         scheduleReconnect(sanitizedNumber, wait, `attempt ${attempts}`);
     });
 }
@@ -881,6 +881,8 @@ async function ahmadPair(number, res = null) {
 
         setupCallHandlers(conn, number);
         setupAutoRestart(conn, number);
+        // v13.5: zombie (half-dead) socket pakadna — bot ruk jaye to 1-2 minute mein khud reconnect (pehle 10-15 minute lagte the)
+        try { const SH = require('./lib/selfheal'); SH.attach(conn, sanitizedNumber, { log: ahmadLog, reconnect: (n, why) => { if (activeSockets.get(n) !== conn) return; dropSocket(n); scheduleReconnect(n, 1500, why); } }); SH.startMonitors(ahmadLog); } catch (e) { ahmadLog(`selfheal attach failed: ${e.message}`, 'warning'); }
 
         conn.decodeJid = jid => {
             if (!jid) return jid;
